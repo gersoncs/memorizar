@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Motor de Memorización Pro Max</title>
+    <style>
+        :root { --color-rec: #17a2b8; --color-prod: #ffc107; --color-dom: #dc3545; --bg-light: #f8f9fa; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background-color: #e9ecef; color: #333; }
+        .contenedor { max-width: 1200px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        
+        .cabecera-controles { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #eee; flex-wrap: wrap; gap:10px;}
+        .controles-izq { display: flex; gap: 15px; align-items: center; flex-wrap: wrap;}
+        select, button, input[type="text"], textarea { padding: 10px; font-size: 16px; border: 1px solid #ced4da; border-radius: 6px; }
+        button { cursor: pointer; background: #0056b3; color: white; border: none; font-weight: bold; transition: transform 0.1s, background 0.2s; }
+        button:hover { background: #004494; }
+        button:active { transform: scale(0.95); }
+        button:disabled { background: #ccc; cursor: not-allowed; color: #666; transform: none;}
+        #btn-reintentar { background: #28a745; }
+        #btn-reintentar:hover:not(:disabled) { background: #218838; }
+        
+        /* Layout Principal */
+        .layout-principal { display: grid; grid-template-columns: 350px 1fr; gap: 25px; }
+        @media (max-width: 900px) { .layout-principal { grid-template-columns: 1fr; } }
+        
+        /* Panel de Fases (Izquierda) */
+        .panel-fases { display: flex; flex-direction: column; gap: 15px; max-height: 700px; overflow-y: auto; padding-right: 10px; }
+        .columna-fase { background: var(--bg-light); padding: 15px; border-radius: 8px; border-left: 5px solid #ccc; margin-bottom: 10px;}
+        .columna-fase.rec { border-left-color: var(--color-rec); }
+        .columna-fase.prod { border-left-color: var(--color-prod); }
+        .columna-fase.dom { border-left-color: var(--color-dom); }
+        .columna-fase h3 { margin-top: 0; font-size: 1.1em; color: #495057; border-bottom: 1px solid #ddd; padding-bottom: 5px;}
+        
+        .btn-tecnica { display: block; width: 100%; margin-bottom: 6px; text-align: left; background: #fff; color: #495057; border: 1px solid #dee2e6; font-size: 0.85em; font-weight: normal; padding: 8px; border-radius:4px;}
+        .btn-tecnica:hover { background: #e2e6ea; padding-left: 12px; }
+        .btn-tecnica.activo { font-weight: bold; background: #e2e6ea; border-left: 4px solid #333; color: #000; }
+
+        /* Área de Trabajo (Derecha) */
+        #area-trabajo { padding: 30px; border: 2px dashed #adb5bd; border-radius: 8px; min-height: 400px; font-size: 1.3em; background-color: #fff; position: relative; overflow: hidden; display:flex; flex-direction:column;}
+        #cita-actual { font-size: 1.3em; font-weight: bold; color: #0056b3; background: #eef; padding: 10px 15px; border-radius:6px; margin:0;}
+        
+        /* Elementos UI del Juego */
+        .hud-juego { display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 0.9em; font-weight: bold; background:#333; color:white; padding:10px; border-radius:6px;}
+        .barra-tiempo { width: 100%; height: 10px; background: #eee; border-radius: 5px; overflow: hidden; margin-bottom: 15px; }
+        .barra-tiempo-fill { height: 100%; background: #28a745; width: 100%; transition: width 0.1s linear, background 0.3s; }
+        
+        .cita { font-weight: 600; margin-bottom: 8px; color: #2c3e50; font-size: 0.95em; border-bottom: 2px solid #f0f0f0; padding-bottom: 5px; }
+        .texto { line-height: 1.6; color: #444; font-size: 1.1em; }
+        textarea.zona-escritura { width: 100%; height: 120px; margin-top: 15px; resize: vertical; box-sizing: border-box; font-size:1em;}
+        .correcto { color: #28a745; font-weight: bold; }
+        .incorrecto { color: #dc3545; font-weight: bold; }
+        
+        .palabra-draggable { display: inline-block; padding: 8px 12px; margin: 5px; background: #e9ecef; border-radius: 4px; cursor: pointer; user-select: none; border: 1px solid #ccc; transition: all 0.1s;}
+        .palabra-draggable:active { transform: scale(0.9); background:#d0d0d0;}
+        .zona-drop { min-height: 80px; border-bottom: 3px solid #ccc; margin-bottom: 15px; padding-bottom: 10px; background: #f8f9fa; border-radius: 6px 6px 0 0;}
+        .feedback-banner { margin-top: 15px; padding: 15px; border-radius: 6px; text-align: center; display: none; font-size: 1.1em; animation: popIn 0.3s ease-out;}
+        
+        @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        
+        /* Efectos Especiales */
+        .espejo { transform: scaleX(-1); display: inline-block; direction: rtl; }
+        .interferencia-bg { animation: cambioFondo 0.5s infinite alternate; }
+        .interferencia-blur { filter: blur(3px); transition: filter 0.2s; }
+        .interferencia-blur:hover { filter: blur(0px); }
+        .ruido-visual { position: absolute; background: rgba(0,0,0,0.9); width: 100%; height: 15px; animation: barrido 1s infinite linear; pointer-events: none; z-index: 50; }
+        @keyframes cambioFondo { 0% { background: #fff; } 100% { background: #ffebeb; } }
+        @keyframes barrido { 0% { top: -10%; } 100% { top: 110%; } }
+
+        /* Memorama 3D */
+        .grid-memorama { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; perspective: 1000px; }
+        .carta-mem { position: relative; width: 100%; aspect-ratio: 4/3; transform-style: preserve-3d; transition: transform 0.5s; cursor: pointer; }
+        .carta-mem.flipped { transform: rotateY(180deg); }
+        .carta-mem.matched { visibility: hidden; transition: visibility 0s 0.5s, opacity 0.5s; opacity:0;}
+        .carta-cara, .carta-cruz { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; border-radius: 8px; box-sizing: border-box; padding: 10px; font-size:0.7em; text-align:center;}
+        .carta-cruz { background: #0056b3; color: white; background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px); border: 2px solid #004494;}
+        .carta-cara { background: #fff; color: #333; transform: rotateY(180deg); border: 2px solid #17a2b8; box-shadow: inset 0 0 10px rgba(0,0,0,0.1);}
+
+        /* Gravedad */
+        #cielo-gravedad { position: relative; flex-grow: 1; border: 1px solid #ccc; background: #fafafa; overflow: hidden; margin-bottom: 10px; border-radius:6px; min-height:300px;}
+        .palabra-cayendo { position: absolute; padding: 5px 10px; background: #ffc107; border-radius: 4px; font-weight: bold; white-space: nowrap; transition: top 0.1s linear; }
+
+        /* Whack-a-mole */
+        .hueco-mole { display:inline-block; min-width:80px; height:30px; border-bottom:2px solid #333; margin:0 5px; vertical-align: bottom; position:relative; overflow:visible;}
+        .mole-intruso { position:absolute; bottom:0; left:0; width:100%; background:#dc3545; color:white; text-align:center; border-radius:4px; font-size:0.9em; padding:2px 0; cursor:pointer; font-weight:bold; z-index:10; animation: moleUp 0.2s ease-out;}
+        @keyframes moleUp { 0% { bottom:-20px; opacity:0; } 100% { bottom:0; opacity:1; } }
+
+        /* Tracking Periférico */
+        .grid-periferico { display: grid; grid-template-columns: 1fr 20px 1fr; gap: 10px; align-items: center; height: 100px;}
+        .punto-fijacion { width: 10px; height: 10px; background: red; border-radius: 50%; margin: 0 auto; animation: latido 1s infinite;}
+        @keyframes latido { 0% { transform: scale(1); } 50% { transform: scale(1.5); } 100% { transform: scale(1); } }
+    </style>
+</head>
+<body>
+
+<div class="contenedor">
+    <div class="cabecera-controles">
+        <div id="cita-actual">Seleccione un versículo</div>
+        <div class="controles-izq">
+            <select id="selector-versiculo"></select>
+            <button id="btn-reintentar" disabled>↻ Reintentar</button>
+        </div>
+    </div>
+
+    <div class="layout-principal">
+        <div class="panel-fases">
+            <div class="columna-fase rec" id="menu-fase-1"><h3>👁️ I. Reconocimiento visual</h3></div>
+            <div class="columna-fase prod" id="menu-fase-2"><h3>🧠 II. Producción de enlaces</h3></div>
+            <div class="columna-fase dom" id="menu-fase-3"><h3>👑 III. Dominio absoluto</h3></div>
+        </div>
+
+        <div id="area-trabajo">
+            <div style="text-align:center; color:#666; margin-top:50px;">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+                <h2>Motor de Entrenamiento Activo</h2>
+                <p>Seleccione una técnica en el panel izquierdo para comenzar el desafío.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="versomemo.js"></script> 
+<script>
+    // ==========================================
+    // NÚCLEO LÓGICO Y ESTADO
+    // ==========================================
+    const Validacion = {
+        normalizar: (texto) => texto.toLowerCase().replace(/[^a-z0-9ñáéíóú]/g, ''),
+        comparar: (input, objetivo) => Validacion.normalizar(input) === Validacion.normalizar(objetivo),
+        extraerPalabras: (texto) => texto.split(/[\s]+/).filter(w => w.length > 0)
+    };
+
+    const EstadoApp = {
+        versiculo: null,
+        intervalos: [], 
+        estrategiaActiva: null,
+        datosTemporales: {},
+        persistencia: {}, 
+        
+        limpiar: function() {
+            this.intervalos.forEach(clearInterval);
+            this.intervalos = [];
+            this.datosTemporales = {};
+            let area = document.getElementById('area-trabajo');
+            area.innerHTML = '';
+            area.className = ''; 
+        },
+        
+        registrarIntervalo: function(id) { this.intervalos.push(id); return id; }
+    };
+
+    const renderDual = (v, fn = (x)=>x) => `<div class="cita">${fn(v.cita)}</div><div class="texto">${fn(v.texto)}</div>`;
+    
+    // FIX DE HUD BLINDADO: Evita el RangeError de .repeat()
+    const crearHUD = (vidas = 3) => {
+        EstadoApp.datosTemporales.vidas = vidas;
+        EstadoApp.datosTemporales.maxVidas = vidas;
+        EstadoApp.datosTemporales.combo = 0;
+        return `<div class="hud-juego">
+                    <div>❤️ Vidas: <span id="hud-vidas">${'🔴'.repeat(vidas)}</span></div>
+                    <div id="hud-mensaje">¡Preparado!</div>
+                    <div>🔥 Combo: <span id="hud-combo">0</span>x</div>
+                </div>`;
+    };
+
+    const actualizarHUD = (acierto, msg = "") => {
+        let hVidas = document.getElementById('hud-vidas');
+        let hCombo = document.getElementById('hud-combo');
+        let hMsg = document.getElementById('hud-mensaje');
+        if(!hVidas) return true;
+
+        if(acierto) {
+            EstadoApp.datosTemporales.combo++;
+            hCombo.textContent = EstadoApp.datosTemporales.combo;
+            hCombo.style.color = EstadoApp.datosTemporales.combo > 2 ? '#ffc107' : 'white';
+            hMsg.textContent = msg || "¡Bien!"; hMsg.style.color = '#28a745';
+            return true;
+        } else {
+            EstadoApp.datosTemporales.vidas--;
+            EstadoApp.datosTemporales.combo = 0;
+            hCombo.textContent = "0"; hCombo.style.color = 'white';
+            
+            // Blindaje matemático para pintar los corazones sin crashear el motor
+            let maxV = EstadoApp.datosTemporales.maxVidas || 3;
+            let vActuales = Math.max(0, EstadoApp.datosTemporales.vidas);
+            let vPerdidas = Math.max(0, maxV - vActuales);
+            hVidas.textContent = '🔴'.repeat(vActuales) + '⚫'.repeat(vPerdidas);
+            
+            hMsg.textContent = msg || "¡Fallo!"; hMsg.style.color = '#dc3545';
+            
+            if(EstadoApp.datosTemporales.vidas <= 0) {
+                hMsg.textContent = "☠️ ¡FIN DEL JUEGO!";
+                return false; 
+            }
+            return true;
+        }
+    };
+
+    const crearBarraTiempo = () => `<div class="barra-tiempo"><div class="barra-tiempo-fill" id="barra-fill"></div></div>`;
+    const bancoDistractores = ["espíritu", "ley", "pecado", "cielo", "tierra", "promesa", "sangre", "templo", "paz", "gracia", "verdad", "luz", "tinieblas", "justicia", "muerte", "vida", "carne", "gloria", "fe", "esperanza", "amor", "castigo", "salvación", "fuego", "agua", "mundo", "hombre", "mujer", "niño", "camino", "verdad", "puerta"];
+
+    // ==========================================
+    // DICCIONARIO DE ESTRATEGIAS (55 TÉCNICAS)
+    // ==========================================
+    const DiccionarioEstrategias = {
+        fase1_Reconocimiento: [
+            { nombre: "1. Lectura Normal", render: (dom, v) => dom.innerHTML = renderDual(v) },
+            { nombre: "2. Audio Narrador", render: (dom, v) => { dom.innerHTML = `<button id="btn-hablar" style="margin-bottom:15px;">▶️ Reproducir Audio</button>${renderDual(v)}`; document.getElementById('btn-hablar').onclick = () => window.speechSynthesis.speak(new SpeechSynthesisUtterance(`${v.cita}. ${v.texto}`)); } },
+            { nombre: "3. Lectura Rápida (Niveles)", render: (dom, v) => { 
+                EstadoApp.persistencia.nivelRSVP = EstadoApp.persistencia.nivelRSVP || 1;
+                let nivel = EstadoApp.persistencia.nivelRSVP;
+                let velocidad = Math.max(80, 450 - (nivel * 70));
+                const p = (`${v.cita} ${v.texto}`).split(' '); 
+                
+                dom.innerHTML = `<div style="text-align:center; margin-bottom:10px; color:#0056b3; font-weight:bold;">Nivel de Agilidad: ${nivel}/5</div>
+                                 <div id="rsvp" style="font-size:2.5em;text-align:center;padding:40px; min-height:90px; background:#f8f9fa; border-radius:8px; margin-bottom:15px;">👀</div>
+                                 <button id="btn-rsvp" style="width:100%; padding:15px; font-size:1.1em;">Iniciar Entrenamiento Ocular</button>`; 
+                
+                document.getElementById('btn-rsvp').onclick = (e) => { 
+                    e.target.disabled = true; let i = 0; 
+                    let timerId = setInterval(() => { 
+                        if (i < p.length) {
+                            let word = p[i++];
+                            let mid = Math.floor(word.length/2);
+                            if(word.length > 2) { word = `<span>${word.slice(0,mid)}</span><strong style="color:#dc3545;">${word[mid]}</strong><span>${word.slice(mid+1)}</span>`; }
+                            let rsvpDOM = document.getElementById('rsvp');
+                            if(rsvpDOM) rsvpDOM.innerHTML = word; 
+                        } else { 
+                            clearInterval(timerId);
+                            let rsvpDOM = document.getElementById('rsvp');
+                            if(rsvpDOM) rsvpDOM.textContent = "Fin"; 
+                            e.target.disabled = false; 
+                            if(nivel < 5) {
+                                e.target.textContent = "Avanzar al siguiente nivel (+ Velocidad)";
+                                e.target.onclick = () => { EstadoApp.persistencia.nivelRSVP++; document.getElementById('btn-reintentar').click(); };
+                            } else { 
+                                e.target.textContent = "Nivel Máximo Alcanzado 🏆"; e.target.disabled = true;
+                            }
+                        } 
+                    }, velocidad);
+                    EstadoApp.registrarIntervalo(timerId);
+                }; 
+            } },
+            { nombre: "4. Bloques Semánticos", render: (dom, v) => { 
+                const fragFn = (t) => '<div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">' + t.split(/[,;.]/).filter(f=>f.trim()!=='').map((f, idx) => `<div style="background:#e9ecef; padding:12px; border-left:5px solid #17a2b8; font-size:1.1em; border-radius:0 6px 6px 0;">${f.trim()}</div>`).join('') + '</div>';
+                dom.innerHTML = renderDual(v, fragFn);
+            } },
+            { nombre: "5. Palabras Clave (Subconsciente)", render: (dom, v) => dom.innerHTML = renderDual(v, t => t.split(' ').map(p => Validacion.normalizar(p).length > 4 ? `<strong><mark style="background:#fff3cd; padding:2px 4px; border-radius:3px;">${p}</mark></strong>` : `<span style="opacity:0.6">${p}</span>`).join(' ')) },
+            { nombre: "6. Estructura sin Vocales", render: (dom, v) => dom.innerHTML = `<div style="font-family:monospace; letter-spacing:2px; font-size:1.2em; background:#f8f9fa; padding:20px; border-radius:8px;">${renderDual(v, t => t.replace(/[aeiouáéíóúAEIOUÁÉÍÓÚ]/g, '_'))}</div>` },
+            { nombre: "7. Estructura sin Consonantes", render: (dom, v) => dom.innerHTML = `<div style="font-family:monospace; letter-spacing:2px; font-size:1.2em; background:#f8f9fa; padding:20px; border-radius:8px;">${renderDual(v, t => t.replace(/[bcdfghjklmnñpqrstvwxyzBCDFGHJKLMNÑPQRSTVWXYZ]/g, '_'))}</div>` },
+            { nombre: "8. Fijación Zonal (3 saltos)", render: (dom, v) => { 
+                let p = Validacion.extraerPalabras(`${v.cita} ${v.texto}`); 
+                dom.innerHTML = `<p style="text-align:center; color:#666;">No mueva los ojos, intente captar las tres palabras de un solo vistazo.</p><div id="visor-fijacion" style="font-size:1.5em; text-align:center; padding:50px 20px; min-height:80px; background:#eef; border-radius:8px; margin-bottom:15px;">...</div><button id="btn-fij" style="width:100%; padding:15px;">Iniciar Salto Zonal</button>`;
+                document.getElementById('btn-fij').onclick = (e) => {
+                    e.target.disabled = true; let i = 0;
+                    EstadoApp.registrarIntervalo(setInterval(() => {
+                        if(i < p.length) {
+                            let w1 = p[i] || ""; let w2 = p[i+1] || ""; let w3 = p[i+2] || "";
+                            document.getElementById('visor-fijacion').innerHTML = `<span style="float:left; color:#555;">${w1}</span> <strong style="color:#0056b3;">${w2}</strong> <span style="float:right; color:#555;">${w3}</span>`;
+                            i+=3;
+                        } else {
+                            EstadoApp.limpiar(); document.getElementById('visor-fijacion').innerHTML = "Fin del ejercicio"; e.target.disabled = false;
+                        }
+                    }, 1000));
+                };
+            } },
+            { nombre: "9. Sopa de Letras Perfecta", render: (dom, v) => {
+                let textoFiltro = (`${v.cita} ${v.texto}`).replace(/[0-9]/g, ''); 
+                let palabrasBrutas = textoFiltro.split(/[\s,;.]+/).map(w=>Validacion.normalizar(w)).filter(w=>w.length>4);
+                let words = [...new Set(palabrasBrutas)].sort(()=>Math.random()-0.5).slice(0, 10);
+                if(words.length === 0) { dom.innerHTML = "<p>El versículo no contiene palabras suficientemente largas (sin números).</p>"; return; }
+                
+                let n = 14; let grid = Array(n*n).fill('.');
+                let mapPalabras = {}; words.forEach(w => mapPalabras[w] = []);
+                let dirs = [[0,1], [1,0], [1,1], [-1,1]]; 
+                
+                words.forEach(w => {
+                    let placed = false;
+                    for(let i=0; i<500 && !placed; i++) {
+                        let d = dirs[Math.floor(Math.random()*dirs.length)];
+                        let r = Math.floor(Math.random()*n), c = Math.floor(Math.random()*n);
+                        let can = true, tempIndices = [];
+                        for(let j=0; j<w.length; j++) {
+                            let nr = r + d[0]*j, nc = c + d[1]*j;
+                            if(nr<0 || nr>=n || nc<0 || nc>=n) { can = false; break; }
+                            let idx = nr*n + nc;
+                            if(grid[idx] !== '.' && grid[idx] !== w[j].toUpperCase()) { can = false; break; }
+                            tempIndices.push(idx);
+                        }
+                        if(can) { tempIndices.forEach((idx, j) => { grid[idx] = w[j].toUpperCase(); mapPalabras[w].push(idx); }); placed = true; }
+                    }
+                    if(!placed) delete mapPalabras[w]; 
+                });
+                
+                let palabrasColocadas = Object.keys(mapPalabras);
+                grid = grid.map(c => c === '.' ? String.fromCharCode(65+Math.floor(Math.random()*26)) : c);
+                
+                dom.innerHTML = `<div style="display:flex; justify-content:space-between; margin-bottom:15px; background:#f8f9fa; padding:15px; border-radius:8px;">
+                                    <div style="flex:1;">
+                                        <strong style="color:#0056b3; display:block; margin-bottom:10px;">Encontrar (${palabrasColocadas.length}):</strong>
+                                        <ul id="lista-sopa" style="padding-left:20px; font-size:0.95em; columns: 2; margin:0;">
+                                            ${palabrasColocadas.map(w => `<li id="li-${w}">${w.toUpperCase()}</li>`).join('')}
+                                        </ul>
+                                    </div>
+                                 </div>
+                                 <div id="res-sopa" class="feedback-banner" style="position:absolute; top:40%; left:50%; transform:translate(-50%, -50%); z-index:100; box-shadow:0 10px 30px rgba(0,0,0,0.5); font-size:1.8em; font-weight:bold; border:4px solid #28a745;"></div>
+                                 <div id="grid-sopa" style="display:grid; grid-template-columns:repeat(${n}, 1fr); gap:3px; width:100%; max-width:450px; margin:0 auto; user-select:none; background:#ccc; padding:3px; border-radius:6px;"></div>`;
+                
+                let palabrasEncontradas = 0;
+                let estadoSeleccion = {}; let palabrasCompletadas = new Set();
+                palabrasColocadas.forEach(w => estadoSeleccion[w] = new Set());
+                let gridDom = document.getElementById('grid-sopa');
+                
+                grid.forEach((l, idx) => {
+                    let celda = document.createElement('div');
+                    celda.style.cssText = `aspect-ratio:1; display:flex; align-items:center; justify-content:center; background:#fff; cursor:pointer; font-weight:bold; border-radius:3px; font-size:1.1em; transition: 0.1s; color:#444;`;
+                    celda.textContent = l;
+                    celda.onclick = () => {
+                        let esAcierto = false;
+                        palabrasColocadas.forEach(w => {
+                            if(mapPalabras[w].includes(idx)) {
+                                esAcierto = true; estadoSeleccion[w].add(idx);
+                                celda.style.background = '#ffc107'; celda.style.color = '#000';
+                                
+                                if(estadoSeleccion[w].size === mapPalabras[w].length && !palabrasCompletadas.has(w)) {
+                                    palabrasCompletadas.add(w);
+                                    let itemLi = document.getElementById(`li-${w}`);
+                                    itemLi.style.textDecoration = 'line-through'; itemLi.style.color = '#28a745'; itemLi.style.fontWeight = 'bold';
+                                    mapPalabras[w].forEach(i => { gridDom.children[i].style.background = '#28a745'; gridDom.children[i].style.color = 'white'; });
+                                    palabrasEncontradas++;
+                                    if(palabrasEncontradas === palabrasColocadas.length) {
+                                        let res = document.getElementById('res-sopa');
+                                        res.innerHTML = '🎉 ¡Visión de Águila! Todas encontradas. 🎉';
+                                        res.style.display = 'block'; res.style.background = '#d4edda';
+                                    }
+                                }
+                            }
+                        });
+                        if(!esAcierto) {
+                            celda.style.background = '#dc3545'; celda.style.color = 'white';
+                            setTimeout(()=> { celda.style.background = '#fff'; celda.style.color = '#444'; }, 400);
+                        }
+                    };
+                    gridDom.appendChild(celda);
+                });
+            } },
+            { nombre: "10. Inversión Cognitiva", render: (dom, v) => dom.innerHTML = `<div style="background:#ececec; color:white; padding:20px; border-radius:8px; text-align:right; font-size:1.2em; line-height:1.8;">${renderDual(v, t => t.split(' ').reverse().join(' '))}</div><p style="text-align:center; margin-top:10px;">Leer al revés rompe la predicción automática del cerebro.</p>` },
+            { nombre: "11. Red Conceptual", render: (dom, v) => dom.innerHTML = renderDual(v, t => t.split(' ').filter(p=>Validacion.normalizar(p).length>3).map(p=>`<span style="border:2px solid #17a2b8; padding:5px 12px; border-radius:20px; display:inline-block; margin:5px; background:#e0f3f8;">${p}</span>`).join('<span style="color:#17a2b8; font-weight:bold;"> ➔ </span>')) },
+            { nombre: "12. Alternancia Dicotómica", render: (dom, v) => dom.innerHTML = `<div style="font-size:1.2em; line-height:2;">${renderDual(v, t => t.split(' ').map((p,i) => i%2===0 ? `<strong>${p}</strong>` : `<span style="color:#aaa;">${'_'.repeat(p.length)}</span>`).join(' '))}</div>` },
+            { nombre: "13. Tipografía Caótica", render: (dom, v) => dom.innerHTML = renderDual(v, t => t.split('').map(c => Math.random()>0.5 ? `<span style="font-size:1.2em; color:#0056b3;">${c.toUpperCase()}</span>` : `<span style="font-size:0.9em;">${c.toLowerCase()}</span>`).join('')) },
+            { nombre: "14. Caza del intruso (Fases 1 y 2)", render: (dom, v) => {
+                let t = `${v.cita} ${v.texto}`;
+                let pArr = t.split(' ');
+                
+                let candidatas = pArr.map((w, i) => ({w, i})).filter(x => Validacion.normalizar(x.w).length > 2);
+                let numHuecos = Math.max(4, Math.floor(candidatas.length * 0.6));
+                let objetivos = candidatas.sort(()=>Math.random()-0.5).slice(0, numHuecos);
+
+                dom.innerHTML = crearHUD(3) + crearBarraTiempo() +
+                    `<p id="instruccion-mole"><strong>FASE 1:</strong> Aparecerán palabras en los espacios. <strong>¡Tócalas SOLO si son correctas!</strong></p>
+                     <div id="res-mole" class="feedback-banner"></div>
+                     <div id="caja-mole" style="line-height:2.2; font-size:1.2em; background:#f8f9fa; padding:25px; border-radius:8px; text-align:left; box-shadow:inset 0 0 10px rgba(0,0,0,0.05);"></div>`;
+
+                let caja = document.getElementById('caja-mole');
+                let html = "";
+                
+                pArr.forEach((w, i) => {
+                    let obj = objetivos.find(o => o.i === i);
+                    if(obj) {
+                        html += `<span class="hueco-mole" id="hueco-${i}" data-correcta="${obj.w}" style="display:inline-flex; align-items:center; justify-content:center; min-width:${w.length*12}px; height:1.4em; padding:0 8px; border-bottom:3px solid #ccc; margin:0 4px; vertical-align:text-bottom; font-weight:bold; color:transparent; border-radius:4px; transition:all 0.15s ease-out; cursor:pointer;"></span> `;
+                    } else {
+                        html += `<span style="color:#444;" id="word-${i}">${w}</span> `;
+                    }
+                });
+                caja.innerHTML = html;
+
+                let tiempoTotal = 100;
+                let eliminados = 0;
+                let barraFill = document.getElementById('barra-fill');
+
+                let timerId = EstadoApp.registrarIntervalo(setInterval(() => {
+                    tiempoTotal -= 1; barraFill.style.width = `${tiempoTotal}%`;
+                    if(tiempoTotal <= 20) barraFill.style.background = '#dc3545';
+                    if(tiempoTotal <= 0) {
+                        clearInterval(timerId); clearInterval(spawnerId);
+                        let res = document.getElementById('res-mole');
+                        res.innerHTML = '<span class="incorrecto">⏳ ¡Tiempo agotado en Fase 1!</span>';
+                        res.style.display='block';
+                    }
+                }, 400)); 
+
+                let spawnerId = null;
+
+                let iniciarFase2 = () => {
+                    caja.innerHTML = pArr.map((w, i) => `<span id="f2-word-${i}" data-original="${w}" style="padding:0 4px; border-radius:4px; transition:0.2s; display:inline-block;">${w}</span>`).join(' ');
+                    document.getElementById('instruccion-mole').innerHTML = "<strong>FASE 2 (Supervivencia):</strong> ¡El texto está siendo atacado! Haz clic en las palabras rojas para curarlas antes de 2 segundos.";
+                    
+                    tiempoTotal = 100; 
+                    barraFill.style.background = '#28a745'; barraFill.style.width = '100%';
+                    
+                    let f2TimerId = EstadoApp.registrarIntervalo(setInterval(() => {
+                        tiempoTotal -= 1; barraFill.style.width = `${tiempoTotal}%`;
+                        if(tiempoTotal <= 20) barraFill.style.background = '#dc3545';
+                        if(tiempoTotal <= 0) {
+                            clearInterval(f2TimerId); clearInterval(f2SpawnerId);
+                            caja.innerHTML = pArr.join(' '); 
+                            let res = document.getElementById('res-mole');
+                            res.innerHTML = '<span class="correcto">🏆 ¡DOMINIO ABSOLUTO! Has defendido el versículo de la corrupción.</span>';
+                            res.style.display = 'block'; res.style.background = '#d4edda';
+                            document.getElementById('instruccion-mole').innerHTML = "<strong>¡Entrenamiento completado!</strong>";
+                        }
+                    }, 200));
+
+                    let f2SpawnerId = EstadoApp.registrarIntervalo(setInterval(() => {
+                        if(tiempoTotal <= 0) return;
+                        
+                        let validIndices = pArr.map((w,i) => Validacion.normalizar(w).length > 2 ? i : -1).filter(i => i !== -1);
+                        let targetIdx = validIndices[Math.floor(Math.random()*validIndices.length)];
+                        let wSpan = document.getElementById(`f2-word-${targetIdx}`);
+                        
+                        if(wSpan && !wSpan.dataset.infectado) {
+                            wSpan.dataset.infectado = "true";
+                            let original = wSpan.dataset.original;
+                            wSpan.textContent = bancoDistractores[Math.floor(Math.random()*bancoDistractores.length)];
+                            wSpan.style.background = '#dc3545'; wSpan.style.color = 'white'; wSpan.style.transform = 'scale(1.1)';
+                            
+                            let dañoId = setTimeout(() => {
+                                if(wSpan.dataset.infectado) {
+                                    wSpan.dataset.infectado = ""; wSpan.textContent = original;
+                                    wSpan.style.background = 'transparent'; wSpan.style.color = 'inherit'; wSpan.style.transform = 'scale(1)';
+                                    if(!actualizarHUD(false, "¡Infección exitosa!")) {
+                                        clearInterval(f2TimerId); clearInterval(f2SpawnerId);
+                                        let res = document.getElementById('res-mole');
+                                        res.innerHTML = '<span class="incorrecto">☠️ GAME OVER en Fase 2.</span>'; res.style.display = 'block';
+                                    }
+                                }
+                            }, 2000); 
+                            
+                            wSpan.onclick = () => {
+                                if(wSpan.dataset.infectado) {
+                                    clearTimeout(dañoId);
+                                    wSpan.dataset.infectado = ""; wSpan.textContent = original;
+                                    wSpan.style.background = '#28a745'; wSpan.style.color = 'white';
+                                    setTimeout(() => {
+                                        wSpan.style.background = 'transparent'; wSpan.style.color = 'inherit'; wSpan.style.transform = 'scale(1)';
+                                    }, 300);
+                                    actualizarHUD(true, "¡Defendido!");
+                                }
+                            };
+                        }
+                    }, 1000)); 
+                };
+
+                let moleTimer = () => {
+                    if(eliminados >= numHuecos || tiempoTotal <= 0) return;
+
+                    let huecosVacios = objetivos.filter(o => !document.getElementById(`hueco-${o.i}`).dataset.resuelto);
+                    if(huecosVacios.length === 0) return;
+
+                    let target = huecosVacios[Math.floor(Math.random()*huecosVacios.length)];
+                    let hueco = document.getElementById(`hueco-${target.i}`);
+
+                    if(hueco && !hueco.dataset.ocupado && !hueco.dataset.resuelto) {
+                        hueco.dataset.ocupado = "true";
+                        let esCorrecta = Math.random() > 0.5;
+                        let palabraMostrar = esCorrecta ? target.w : bancoDistractores[Math.floor(Math.random()*bancoDistractores.length)];
+
+                        hueco.textContent = palabraMostrar;
+                        hueco.style.background = '#0056b3';
+                        hueco.style.color = 'white';
+                        hueco.style.borderBottomColor = '#004494';
+                        hueco.style.transform = 'scale(1.05)';
+
+                        hueco.onclick = () => {
+                            if(hueco.dataset.resuelto) return;
+                            if(esCorrecta) {
+                                hueco.dataset.resuelto = "true";
+                                hueco.style.background = '#28a745'; hueco.style.borderBottomColor = '#1e7e34'; hueco.style.transform = 'scale(1)';
+                                hueco.textContent = target.w; 
+                                
+                                eliminados++;
+                                tiempoTotal = Math.min(100, tiempoTotal + 15);
+                                
+                                if(!actualizarHUD(true, "¡Conexión Exacta!")) { clearInterval(timerId); clearInterval(spawnerId); return; }
+
+                                if(eliminados === numHuecos) {
+                                    clearInterval(timerId); clearInterval(spawnerId);
+                                    let res = document.getElementById('res-mole');
+                                    res.innerHTML = '<span class="correcto">🎯 ¡Fase 1 Superada! Preparando Fase 2...</span>';
+                                    res.style.display = 'block'; res.style.background = '#d4edda';
+                                    
+                                    setTimeout(() => { res.style.display = 'none'; iniciarFase2(); }, 2000);
+                                }
+                            } else {
+                                hueco.style.background = '#dc3545'; hueco.style.borderBottomColor = '#bd2130'; hueco.textContent = '❌'; hueco.style.transform = 'scale(1)';
+                                
+                                setTimeout(() => {
+                                    if(!hueco.dataset.resuelto) {
+                                        hueco.style.background = 'transparent'; hueco.style.color = 'transparent'; hueco.style.borderBottomColor = '#ccc';
+                                        delete hueco.dataset.ocupado;
+                                    }
+                                }, 300);
+                                if(!actualizarHUD(false, "¡Palabra incorrecta!")) { clearInterval(timerId); clearInterval(spawnerId); return; }
+                            }
+                        };
+
+                        setTimeout(() => {
+                            if(hueco.parentNode && !hueco.dataset.resuelto) {
+                                hueco.style.background = 'transparent'; hueco.style.color = 'transparent'; hueco.style.borderBottomColor = '#ccc'; hueco.style.transform = 'scale(1)';
+                                delete hueco.dataset.ocupado; hueco.onclick = null;
+                            }
+                        }, 1200 + Math.random()*1000);
+                    }
+                    spawnerId = EstadoApp.registrarIntervalo(setTimeout(moleTimer, 600 + Math.random()*800)); 
+                };
+
+                spawnerId = EstadoApp.registrarIntervalo(setTimeout(moleTimer, 500));
+            } },
+            { nombre: "15. Anagramas Centrales", render: (dom, v) => dom.innerHTML = `<div style="font-size:1.2em; line-height:1.6; background:#eef; padding:20px; border-radius:8px;">${renderDual(v, t => t.split(' ').map(p => { let l=p.replace(/[^a-zA-ZáéíóúñÑ]/g,''); return l.length>3 ? l[0] + l.slice(1,-1).split('').sort(()=>Math.random()-0.5).join('') + l[l.length-1] : p; }).join(' '))}</div>` },
+            { nombre: "16. Efecto Espejo", render: (dom, v) => dom.innerHTML = `<div class="espejo" style="background:#f8f9fa; padding:20px; border-radius:8px; border-right:5px solid #17a2b8;">${renderDual(v)}</div>` }
+        ],
+        
+        fase2_Produccion: [
+            { nombre: "17. Iniciales (Pistas Duras)", render: (dom, v) => dom.innerHTML = `<div style="font-size:1.3em; letter-spacing:1px; line-height:2;">${renderDual(v, t => t.split(' ').map(p => p.replace(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g, (l, i) => i === 0 ? `<span style="color:#0056b3; font-weight:bold;">${l}</span>` : '_')).join(' '))}</div>` },
+            { nombre: "18. Cloze Dinámico", render: (dom, v) => dom.innerHTML = renderDual(v, t => t.split(' ').map(p => Math.random() > 0.6 ? `<input type="text" style="width:${p.length*14}px; margin:2px; text-align:center; font-weight:bold; border:none; border-bottom:2px solid #ccc; background:transparent;" onkeyup="if(Validacion.normalizar(this.value) === '${Validacion.normalizar(p)}') { this.style.backgroundColor='#d4edda'; this.style.borderColor='#28a745'; this.disabled=true; }">` : p).join(' ')) },
+            { nombre: "19. Cloze Múltiple (Strikes)", render: (dom, v) => { 
+                const buildCloze = (str) => {
+                    let pArr = str.split(' ');
+                    let candidatas = pArr.map((p,i)=>({p,i})).filter(x=>x.p.replace(/[^a-zA-ZáéíóúñÑ]/g,'').length > 3);
+                    let numHuecos = Math.max(2, Math.floor(candidatas.length / 2));
+                    if(candidatas.length === 0) return str;
+                    
+                    let ocultas = candidatas.sort(()=>Math.random()-0.5).slice(0, numHuecos);
+                    let htmlTexto = "";
+                    pArr.forEach((palabra, i) => {
+                        let oculta = ocultas.find(x => x.i === i);
+                        if(oculta) {
+                            let opcCorrecta = oculta.p;
+                            let distractores = bancoDistractores.sort(()=>Math.random()-0.5).slice(0,3);
+                            let opciones = [opcCorrecta, ...distractores].sort(()=>Math.random()-0.5);
+                            htmlTexto += `<select class="cloze-pro-select" data-correcta="${Validacion.normalizar(opcCorrecta)}" style="margin:2px; padding:5px 10px; border-radius:20px; font-size:0.9em; background:#fff; border:2px solid #ffc107; outline:none; appearance:none; cursor:pointer;">
+                                <option value="">[ ? ]</option>
+                                ${opciones.map(o => `<option value="${Validacion.normalizar(o)}">${o.replace(/[^a-zA-ZáéíóúñÑ]/g,'')}</option>`).join('')}
+                            </select> `;
+                        } else { htmlTexto += palabra + " "; }
+                    });
+                    return htmlTexto;
+                };
+                
+                dom.innerHTML = crearHUD(3) + 
+                                `<div id="res-cloze" class="feedback-banner" style="margin-bottom:15px;"></div>
+                                 <div style="line-height:2.5; font-size:1.1em; background:#f8f9fa; padding:20px; border-radius:8px; box-shadow:inset 0 0 10px rgba(0,0,0,0.05);">${renderDual(v, buildCloze)}</div>
+                                 <button id="btn-val-cloze" style="margin-top:20px; width:100%; padding:15px; font-size:1.1em;">Validar y Sellar</button>`;
+                
+                document.getElementById('btn-val-cloze').onclick = () => {
+                    let selects = document.querySelectorAll('.cloze-pro-select:not(:disabled)');
+                    let errores = 0; let aciertosVueltas = 0;
+                    if(selects.length === 0) return;
+                    selects.forEach(sel => {
+                        if(sel.value === "") return; 
+                        if(sel.value === sel.dataset.correcta) { 
+                            sel.style.background = '#28a745'; sel.style.color = 'white'; sel.style.borderColor = '#28a745'; sel.disabled=true; aciertosVueltas++;
+                        } else { 
+                            sel.style.background = '#f8d7da'; sel.style.borderColor = '#dc3545'; errores++; sel.value=""; 
+                        }
+                    });
+                    
+                    if(errores > 0) {
+                        if(!actualizarHUD(false, `-${errores} Vidas por errores`)) {
+                            document.getElementById('btn-val-cloze').disabled = true;
+                            document.querySelectorAll('.cloze-pro-select').forEach(s=>s.disabled=true);
+                        }
+                    } else if(aciertosVueltas > 0) {
+                        actualizarHUD(true, "¡Conexiones correctas!");
+                    }
+                    
+                    if(document.querySelectorAll('.cloze-pro-select:not(:disabled)').length === 0 && EstadoApp.datosTemporales.vidas > 0) {
+                        let res = document.getElementById('res-cloze'); res.style.display = 'block';
+                        res.innerHTML = '<span class="correcto">✅ ¡Excepcional! Muro semántico reconstruido.</span>'; res.style.background = '#d4edda';
+                        document.getElementById('btn-val-cloze').style.display='none';
+                    }
+                };
+            } },
+            { nombre: "20. Reensamblaje Total ", render: (dom, v) => { 
+                let t = `${v.cita} ${v.texto}`;
+                let p = Validacion.extraerPalabras(t); 
+                dom.innerHTML= crearBarraTiempo() + 
+                               `<div id="res-orden" class="feedback-banner" style="margin-bottom:15px;"></div>
+                               <div class="zona-drop" id="zD" style="padding:15px; min-height:100px; font-size:1.2em; background:#fff; border:2px dashed #ffc107;"></div>
+                               <div id="zO" style="min-height:100px; padding:15px; background:#f1f3f5; border-radius:0 0 6px 6px; border:1px solid #ddd; border-top:none;"></div>`; 
+                
+                let barra = document.getElementById('barra-fill'); let fill = 0;
+                
+                let checkWin = () => {
+                    let zD = document.getElementById('zD'); let actualList = Array.from(zD.children).map(c=>c.textContent);
+                    let actualStr = actualList.join(' '); let res = document.getElementById('res-orden');
+                    
+                    fill = (actualList.length / p.length) * 100; barra.style.width = `${fill}%`;
+                    
+                    if(actualList.length > 0) {
+                        let subObjetivo = p.slice(0, actualList.length).join(' ');
+                        if(actualStr === subObjetivo) {
+                            zD.style.borderColor = '#28a745'; zD.style.backgroundColor = '#f8fff9';
+                            if(actualList.length === p.length) { 
+                                res.innerHTML = '<span class="correcto">🎯 ¡Sintaxis Perfecta!</span>'; res.style.display = 'block'; res.style.background = '#d4edda'; 
+                                Array.from(zD.children).forEach(c=>c.style.pointerEvents='none');
+                            }
+                        } else { zD.style.borderColor = '#dc3545'; zD.style.backgroundColor = '#fffafa'; }
+                    } else { zD.style.borderColor = '#ffc107'; zD.style.backgroundColor = '#fff'; }
+                };
+
+                [...p].sort(()=>Math.random()-0.5).forEach(x=>{ 
+                    let s = document.createElement('span'); s.className = 'palabra-draggable'; s.textContent = x; 
+                    s.onclick = function() { 
+                        if(this.parentNode.id === 'zO') document.getElementById('zD').appendChild(this); 
+                        else document.getElementById('zO').appendChild(this); 
+                        checkWin();
+                    }; 
+                    document.getElementById('zO').appendChild(s); 
+                }); 
+            } },
+            { nombre: "21. Ordenar Bloques (Chunking)", render: (dom, v) => { 
+                let t = `${v.cita} ${v.texto}`; let p = t.split(' '); let frags = [];
+                for(let i=0; i<p.length; i+=Math.floor(Math.random()*2)+2) { frags.push(p.slice(i, i+3).join(' ')); }
+                dom.innerHTML='<div class="zona-drop" id="zDf" style="background:#fff; border:2px dashed #17a2b8; padding:15px; min-height:80px;"></div><div id="zOf" style="background:#f8f9fa; padding:15px;"></div>'; 
+                frags.filter(x=>x.trim()!=='').sort(()=>Math.random()-0.5).forEach(x=>{ let s=document.createElement('div'); s.className='palabra-draggable'; s.style.display='block'; s.style.fontSize='1.1em'; s.textContent=x; s.onclick=function(){ if(this.parentNode.id==='zOf') document.getElementById('zDf').appendChild(this); else document.getElementById('zOf').appendChild(this); }; document.getElementById('zOf').appendChild(s); }); 
+            } },
+            { nombre: "22. Revisor de Galadas (Corrección)", render: (dom, v) => { 
+                let t = `${v.cita} ${v.texto}`; let arr=t.split(' '); let nInversiones = Math.max(2, Math.floor(arr.length / 4));
+                for(let k=0; k<nInversiones; k++) { let i = Math.floor(Math.random()*(arr.length-1)); [arr[i], arr[i+1]] = [arr[i+1], arr[i]]; }
+                dom.innerHTML= crearHUD(2) + `<p>Eres el editor. Encuentra y reescribe el texto corrigiendo los errores de orden:</p><p style="padding:15px; background:#fff3cd; border-left:4px solid #ffc107; font-size:1.1em; line-height:1.6; border-radius:4px;"><em>${arr.join(' ')}</em></p><textarea id="te" class="zona-escritura" placeholder="Escribe la versión corregida..."></textarea><button id="bte" style="width:100%; margin-top:10px;">Validar Edición</button><div id="re" style="margin-top:10px;"></div>`; 
+                document.getElementById('bte').onclick = () => {
+                    let text = document.getElementById('te').value;
+                    if(Validacion.comparar(text, t)) { document.getElementById('re').innerHTML='<div class="feedback-banner" style="display:block; background:#d4edda; color:#28a745; font-weight:bold;">¡Publicación Aprobada!</div>'; document.getElementById('te').disabled=true;}
+                    else { actualizarHUD(false, "Sigue habiendo errores de sintaxis."); document.getElementById('te').style.background='#fffafa'; setTimeout(()=>document.getElementById('te').style.background='#fff', 300); }
+                };
+            } },
+            { nombre: "23. Memoria Conclusiva (Completar)", render: (dom, v) => { 
+                let t = `${v.cita} ${v.texto}`; let p=t.split(' '); let m=Math.floor(p.length/2); 
+                dom.innerHTML=crearHUD(3) + `<div style="padding:15px; background:#e9ecef; border-radius:6px 6px 0 0; font-size:1.1em;">${p.slice(0,m).join(' ')}...</div><textarea id="tf" class="zona-escritura" style="margin-top:0; border-radius:0 0 6px 6px; border-top:none;" placeholder="Termina la frase..."></textarea><button id="bf" style="margin-top:15px; width:100%;">Sellar Versículo</button><div id="rf" style="margin-top:10px;"></div>`; 
+                document.getElementById('bf').onclick=()=> {
+                    if(Validacion.comparar(document.getElementById('tf').value, p.slice(m).join(' '))) { document.getElementById('rf').innerHTML='<div class="feedback-banner" style="display:block; background:#d4edda; color:#28a745; font-weight:bold;">¡Conclusión Perfecta!</div>'; document.getElementById('tf').disabled=true;}
+                    else { actualizarHUD(false, "El final no coincide."); }
+                };
+            } },
+            { 
+                nombre: "24. Memorama Semántico (Versión Blindada)", 
+                render: (dom, v) => {
+                    if (!v || !v.texto || v.texto.trim().length < 10) {
+                        dom.innerHTML = "<div class='feedback-banner' style='display:block;'>Texto insuficiente.</div>";
+                        return;
+                    }
+
+                    const escapeHTML = str => str.replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+
+                    let textoLimpio = v.texto.trim();
+                    let frags = textoLimpio.split(/[,;.:¿?!|]\s*/).map(x => x.trim()).filter(x => x.length > 2);
+
+                    if (frags.length < 2) {
+                        let words = textoLimpio.split(/\s+/);
+                        let mid = Math.floor(words.length / 2);
+                        frags = [words.slice(0, mid).join(' '), words.slice(mid).join(' ')];
+                    }
+
+                    if (frags.length % 2 !== 0) {
+                        let last = frags.pop();
+                        frags[frags.length - 1] += " " + last;
+                    }
+
+                    let cartasData = [];
+                    for (let i = 0; i < frags.length; i += 2) {
+                        let idPar = i / 2;
+                        cartasData.push({ txt: frags[i], match: idPar, tipo: 'A' });
+                        cartasData.push({ txt: frags[i+1], match: idPar, tipo: 'B' });
+                    }
+
+                    // Shuffle Fisher-Yates
+                    for (let i = cartasData.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [cartasData[i], cartasData[j]] = [cartasData[j], cartasData[i]];
+                    }
+
+                    dom.innerHTML = crearHUD(5) + `
+                        <p style="text-align:center; font-weight:bold; color:#555; margin-bottom:15px;">
+                            Conecta <span style="color:#17a2b8;">[INICIO]</span> con su <span style="color:#ffc107;">[FIN]</span>
+                        </p>
+                        <div id="grid-mem" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px;"></div>
+                        <div id="res-mem" class="feedback-banner"></div>
+                    `;
+
+                    const grid = document.getElementById('grid-mem');
+                    const resBanner = document.getElementById('res-mem');
+                    let seleccionadas = [];
+                    let paresEncontrados = 0;
+                    let bloqueadoGlobal = false;
+
+                    grid.onclick = function(e) {
+                        const carta = e.target.closest('.carta-mem');
+                        if (!carta || bloqueadoGlobal || carta.dataset.estado !== "oculta") return;
+
+                        carta.dataset.estado = "proceso";
+                        carta.classList.add('flipped');
+                        
+                        seleccionadas.push({
+                            el: carta,
+                            match: parseInt(carta.dataset.match),
+                            tipo: carta.dataset.tipo
+                        });
+
+                        if (seleccionadas.length === 2) {
+                            bloqueadoGlobal = true; 
+                            const [c1, c2] = seleccionadas;
+                            const esPareja = (c1.match === c2.match && c1.tipo !== c2.tipo);
+
+                            if (esPareja) {
+                                actualizarHUD(true, "¡Excelente!");
+                                c1.el.dataset.estado = "ganada";
+                                c2.el.dataset.estado = "ganada";
+                                
+                                const cara1 = c1.el.querySelector('.carta-cara');
+                                const cara2 = c2.el.querySelector('.carta-cara');
+                                cara1.style.backgroundColor = "#d4edda";
+                                cara2.style.backgroundColor = "#d4edda";
+
+                                setTimeout(() => {
+                                    c1.el.classList.add('matched');
+                                    c2.el.classList.add('matched');
+                                    paresEncontrados++;
+                                    seleccionadas = [];
+                                    bloqueadoGlobal = false;
+
+                                    if (paresEncontrados === (cartasData.length / 2)) {
+                                        resBanner.innerHTML = "<span class='correcto'>🏆 ¡Dominio del Versículo Completado!</span>";
+                                        resBanner.style.display = "block";
+                                        resBanner.style.backgroundColor = "#d4edda";
+                                    }
+                                }, 600);
+                            } else {
+                                actualizarHUD(false, c1.tipo === c2.tipo ? "Elige tipos diferentes" : "No coinciden");
+                                const tieneVidas = EstadoApp.datosTemporales.vidas > 0;
+                                
+                                c1.el.querySelector('.carta-cara').style.backgroundColor = "#fee2e2";
+                                c2.el.querySelector('.carta-cara').style.backgroundColor = "#fee2e2";
+
+                                setTimeout(() => {
+                                    if (tieneVidas) {
+                                        c1.el.classList.remove('flipped');
+                                        c2.el.classList.remove('flipped');
+                                        c1.el.dataset.estado = "oculta";
+                                        c2.el.dataset.estado = "oculta";
+                                        c1.el.querySelector('.carta-cara').style.backgroundColor = "#fff";
+                                        c2.el.querySelector('.carta-cara').style.backgroundColor = "#fff";
+                                        seleccionadas = [];
+                                        bloqueadoGlobal = false; 
+                                    } else {
+                                        resBanner.innerHTML = "<span class='incorrecto'>☠️ Intentos agotados. Repasa el texto original.</span>";
+                                        resBanner.style.display = "block";
+                                        resBanner.style.backgroundColor = "#f8d7da";
+                                        
+                                        c1.el.classList.remove('flipped');
+                                        c2.el.classList.remove('flipped');
+                                        bloqueadoGlobal = true; 
+                                    }
+                                }, 1200);
+                            }
+                        }
+                    };
+
+                    cartasData.forEach(data => {
+                        const cardEl = document.createElement('div');
+                        cardEl.className = 'carta-mem';
+                        cardEl.dataset.estado = "oculta";
+                        cardEl.dataset.match = data.match;
+                        cardEl.dataset.tipo = data.tipo;
+
+                        cardEl.innerHTML = `
+                            <div class="carta-cruz">?</div>
+                            <div class="carta-cara" style="display:flex; flex-direction:column; justify-content:center; align-items:center; padding:10px; border:2px solid ${data.tipo === 'A' ? '#17a2b8' : '#ffc107'};">
+                                <span style="font-size:0.6em; font-weight:bold; color:${data.tipo === 'A' ? '#17a2b8' : '#e6a800'}; margin-bottom:4px;">
+                                    [ ${data.tipo === 'A' ? 'INICIO' : 'FIN'} ]
+                                </span>
+                                <div style="font-size:0.75em; line-height:1.2; text-align:center;">${escapeHTML(data.txt)}</div>
+                            </div>
+                        `;
+                        grid.appendChild(cardEl);
+                    });
+                }
+            },
+            { nombre: "25. Esqueleto Fonético", render: (dom, v) => { 
+                let t = `${v.cita} ${v.texto}`; let target = t.split(' ').map(w => Validacion.normalizar(w).charAt(0)).join('');
+                dom.innerHTML=`<p>Escribe <strong>solo la primera letra</strong> de cada palabra del versículo completo:</p>
+                               <div style="background:#333; padding:20px; border-radius:8px;">
+                                 <textarea id="tp" class="zona-escritura" style="font-family:monospace; font-size:1.8em; letter-spacing:8px; background:transparent; color:#28a745; border:none; outline:none; text-transform:uppercase;"></textarea>
+                               </div><div id="rp" style="margin-top:10px;"></div>`; 
+                document.getElementById('tp').addEventListener('input', e=>{
+                    let val = e.target.value.toLowerCase().replace(/[^a-z0-9ñáéíóú]/g, ''); let obj = target.substring(0, val.length);
+                    if(val === target) document.getElementById('rp').innerHTML=`<div class="feedback-banner" style="display:block; background:#d4edda; color:#28a745;"><strong>¡Secuencia Óptima!</strong> El esqueleto mental está listo.</div>`;
+                    else if(val === obj) document.getElementById('rp').innerHTML=`<span style="color:#666;">Analizando...</span>`;
+                    else { document.getElementById('rp').innerHTML=`<span class="incorrecto">Letra errónea en la posición ${val.length}. Bórrala.</span>`; e.target.value = e.target.value.slice(0,-1); }
+                });
+            } },
+            { nombre: "26. Mnemotecnia Visual (Acrónimo)", render: (dom, v) => dom.innerHTML= renderDual(v, t => `<div style="background:linear-gradient(135deg, #17a2b8, #0056b3); padding:20px; border-radius:8px; color:white; text-align:center; box-shadow:inset 0 0 10px rgba(0,0,0,0.2);"><h2 style="letter-spacing:8px; margin:0; text-shadow:2px 2px 4px rgba(0,0,0,0.3); font-size:2.5em;">${t.split(' ').map(p=>p.charAt(0).toUpperCase()).join('')}</h2><p style="opacity:0.8; font-size:0.8em; margin-top:10px;">Guarde esta imagen en su memoria fotográfica.</p></div>`) },
+            { nombre: "27. Auditoría Paralela", render: (dom, v) => dom.innerHTML=`<div style="display:flex;gap:15px;flex-direction:column;"><textarea class="zona-escritura" placeholder="Redacta el texto completo..." style="height:150px; background:#fffdf8; border:2px solid #ffc107;"></textarea><div id="to" style="background:#e9ecef; padding:20px; display:none; border-radius:6px; border-left:4px solid #0056b3;">${renderDual(v)}</div></div><button onclick="document.getElementById('to').style.display='block'; this.style.display='none';" style="margin-top:15px; width:100%; padding:15px; font-size:1.1em;">Revelar Código Fuente (Comparar)</button>` },
+            { nombre: "28. Interrogatorio Socrático", render: (dom, v) => {
+                let p = v.texto.split(' ').filter(x => Validacion.normalizar(x).length > 0);
+                dom.innerHTML=`<p style="color:#0056b3; font-weight:bold;">Para memorizar a largo plazo, el cerebro necesita entender el "por qué". Responde brevemente:</p>
+                <div style="display:flex; flex-direction:column; gap:12px; background:#f8f9fa; padding:20px; border-radius:8px;">
+                    <label>1. ¿En qué libro y capítulo se encuentra esto?</label><input type="text" placeholder="(Respuesta: ${v.cita})">
+                    <label>2. ¿Cuál es el verbo que detona la acción principal?</label><input type="text">
+                    <label>3. ¿A quién va dirigido el mensaje implícito?</label><input type="text">
+                    <label>4. Sintetiza la promesa o condición en una sola línea:</label><input type="text">
+                    <button style="margin-top:10px;" onclick="alert('Respuestas de anclaje guardadas localmente. La comprensión semántica se ha fortalecido un 40%.');">Guardar Reflexión</button>
+                </div>`; 
+            } },
+            { nombre: "29. Ruleta de Letras (Decodificador)", render: (dom, v) => { 
+                const buildCajas = (t) => t.split(' ').map(p => {
+                    let word = Validacion.normalizar(p); let nonAlpha = p.replace(/[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9]/g, '');
+                    return `<input type="text" maxlength="${word.length}" style="width:${Math.max(40, word.length*18)}px; padding:8px 2px; margin:3px; text-align:center; font-family:monospace; font-size:1.1em; background:#fff; border:1px solid #ccc; border-bottom:3px solid #0056b3; outline:none;" data-word="${word}">${nonAlpha}`;
+                }).join(' ');
+                dom.innerHTML= crearHUD(3) + `<p>El texto ha sido encriptado. Decodifícalo rellenando la estructura métrica exacta:</p><div style="line-height:3; background:#eef; padding:20px; border-radius:8px;">${renderDual(v, buildCajas)}</div><button id="br29" style="margin-top:20px; width:100%; padding:15px;">Ejecutar Decodificación</button>`;
+                document.getElementById('br29').onclick = () => {
+                    let fallos = 0; let total = 0;
+                    document.querySelectorAll('#area-trabajo input').forEach(inp => {
+                        total++;
+                        if(Validacion.normalizar(inp.value) === inp.dataset.word) { inp.style.background = '#d4edda'; inp.style.borderColor = '#28a745'; }
+                        else { inp.style.background = '#f8d7da'; inp.style.borderColor = '#dc3545'; fallos++; }
+                    });
+                    if(fallos > 0) actualizarHUD(false, `Algoritmo rechazado: ${fallos} errores detectados.`);
+                    else actualizarHUD(true, "¡Decodificación completada!");
+                };
+            } },
+            { nombre: "30. Traducción Semántica (Parafraseo)", render: (dom, v) => dom.innerHTML=`<p style="font-size:1.1em;">El "Efecto de Generación" dice que aprendemos mejor lo que creamos nosotros mismos. <strong>Reescribe este versículo usando tu vocabulario cotidiano:</strong></p><textarea class="zona-escritura" style="background:#fffdf8;"></textarea><button style="margin-top:10px;" onclick="alert('Al traducir el texto, has creado una segunda ruta neuronal de acceso a la misma información.');">Sellar Traducción Mental</button>` },
+            { nombre: "31. Coreografía Mnemotécnica", render: (dom, v) => {
+                let verbos = v.texto.split(' ').filter(p=>Validacion.normalizar(p).length>4).sort(()=>Math.random()-0.5).slice(0,4);
+                let acciones = ["Golpea la mesa", "Lleva la mano al corazón", "Mira al techo", "Apunta con el dedo", "Pisa fuerte el suelo", "Cruza los brazos", "Abre las palmas"];
+                let asignaciones = verbos.map(verb => `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #ddd;"><span><strong style="color:#0056b3; font-size:1.2em;">${verb}</strong></span> <span>👉 ${acciones[Math.floor(Math.random()*acciones.length)]}</span></div>`).join('');
+                dom.innerHTML=`${renderDual(v)}<div style="background:#f8f9fa; padding:20px; border-radius:8px; margin-top:20px; border-left:5px solid #ffc107;"><h3 style="margin-top:0;">Activa tu Memoria Motora:</h3><p>La retención aumenta un 60% al asociar palabras con movimientos musculares. Realiza esta coreografía al recitar:</p><div style="background:white; border-radius:4px; border:1px solid #eee;">${asignaciones}</div></div>`;
+            } },
+            { nombre: "32. Ensamblaje de Tercios", render: (dom, v) => { let t = `${v.cita} ${v.texto}`; let l=t.length; let b=[t.substring(0,l/3), t.substring(l/3,l*2/3), t.substring(l*2/3)].sort(()=>Math.random()-0.5); dom.innerHTML='<p>El versículo se partió en 3 bloques enormes. Únelos lógicamente:</p><div class="zona-drop" id="zDb" style="background:#eef; padding:20px; min-height:100px;"></div><div id="zOb" style="padding:15px;"></div>'; b.forEach(x=>{ let s=document.createElement('div'); s.className='palabra-draggable'; s.style.display='block'; s.style.padding='15px'; s.style.fontSize='1.1em'; s.textContent=x; s.onclick=function(){ document.getElementById('zDb').appendChild(this); }; document.getElementById('zOb').appendChild(s); }); } },
+            { nombre: "33. Inyección de Sinónimos", render: (dom, v) => dom.innerHTML=`<p>Lee detenidamente y luego <strong>cambia al menos 3 palabras por sinónimos</strong>. El esfuerzo de buscar alternativas cimenta el concepto original.</p><div style="background:#fff; border-left:4px solid #17a2b8; padding:15px; margin-bottom:15px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">${renderDual(v)}</div><textarea class="zona-escritura" placeholder="Escribe tu versión modificada..."></textarea>` },
+            { nombre: "34. El Desafío Feynman", render: (dom, v) => dom.innerHTML=`<p style="font-size:1.1em; color:#d35400; font-weight:bold;">"Si no puedes explicarlo de forma sencilla, no lo entiendes lo suficientemente bien." - Richard Feynman</p><p>Escribe una nota explicando este texto como si tuvieras que enseñárselo a un niño de 7 años:</p><textarea class="zona-escritura" style="border:2px solid #d35400; background:#fffaf5;"></textarea>` },
+            { nombre: "35. Guía Visual Antipredicción", render: (dom, v) => { 
+                const wrap = (t) => t.split(' ').map(w=>`<span class="track-word" style="transition:color 0.1s, font-size 0.1s; opacity:0.2;">${w} </span>`).join('');
+                dom.innerHTML=`<div id="track-container" style="position:relative; font-size:1.4em; line-height:2.2; padding:30px; background:#111; color:white; border-radius:8px; overflow:hidden;">${renderDual(v, wrap)}</div><button id="btn-track" style="width:100%; margin-top:15px; padding:15px; background:#ffc107; color:black;">Iniciar Escáner Láser</button>`; 
+                document.getElementById('btn-track').onclick = (e) => {
+                    e.target.disabled = true; let words = document.querySelectorAll('.track-word'); let i=0;
+                    EstadoApp.registrarIntervalo(setInterval(()=>{
+                        words.forEach(w=>{w.style.opacity='0.2'; w.style.fontSize='1em'; w.style.textShadow='none'; w.style.color='white';});
+                        if(i<words.length) { words[i].style.opacity='1'; words[i].style.fontSize='1.2em'; words[i].style.color='#0ff'; words[i].style.textShadow='0 0 10px #0ff'; i++; }
+                        else { EstadoApp.limpiar(); e.target.disabled = false; words.forEach(w=>w.style.opacity='1'); }
+                    }, 350));
+                };
+            } },
+            { nombre: "36. Teleprómpter Cognitivo (Anticipación)", render: (dom, v) => { 
+                let t=`${v.cita} ${v.texto}`; let p=t.split(' '); EstadoApp.datosTemporales.idx=0; 
+                dom.innerHTML=`<div style="text-align:center; color:#666;">Intenta adivinar la siguiente palabra antes de pulsar el botón.</div><div id="da" style="font-size:1.8em; min-height:100px; padding:20px; background:#fff; border-radius:8px; box-shadow:inset 0 0 15px rgba(0,0,0,0.1); margin:15px 0;"></div><button id="ba" style="width:100%; padding:20px; font-size:1.2em; border-radius:50px;">Siguiente Paso ⏩</button>`; 
+                document.getElementById('ba').onclick=()=>{ if(EstadoApp.datosTemporales.idx<p.length) document.getElementById('da').innerHTML+=`<span style="animation: popIn 0.2s;">${p[EstadoApp.datosTemporales.idx++]}</span> `; }; 
+            } }
+        ],
+
+        fase3_Dominio: [
+            { nombre: "37. Auditoría de Precisión (Guiada)", render: (dom, v) => { let t=`${v.cita} ${v.texto}`; dom.innerHTML=`<p style="font-weight:bold; color:#0056b3;">Modo Terminal:</p><p>El sistema compilará su texto en tiempo real. Escriba sin detenerse.</p><div style="background:#2d2d2d; padding:20px; border-radius:8px;"><textarea id="tg" class="zona-escritura" placeholder=">_ Ingrese la cita y el texto..." style="background:transparent; color:#fff; border:none; outline:none; font-family:monospace; font-size:1.2em; padding:0; height:80px;"></textarea><div id="rg" style="margin-top:10px; font-size:1.2em; font-family:monospace; min-height:40px; border-top:1px solid #555; padding-top:10px;"></div></div>`; document.getElementById('tg').addEventListener('input', e=>{ let obj=t.substring(0,e.target.value.length); document.getElementById('rg').innerHTML=e.target.value.toLowerCase()===obj.toLowerCase()?`<span style="color:#0f0;">${e.target.value}</span>`:`<span style="color:#f00; background:rgba(255,0,0,0.2);">${e.target.value}</span>`; }); } },
+            { nombre: "38. Transcripción Acústica (A Ciegas)", render: (dom, v) => { dom.innerHTML=`<div style="text-align:center; padding:30px; background:#eef; border-radius:8px;"><button style="padding:15px 30px; font-size:1.2em; border-radius:50px;" onclick="window.speechSynthesis.speak(new SpeechSynthesisUtterance('${v.cita}. ${v.texto}'))">🎧 Iniciar Transmisión de Audio</button></div><textarea class="zona-escritura" style="margin-top:15px; border-width:2px;" placeholder="Transcribe literalmente lo que escuches..."></textarea>`; } },
+            { nombre: "39. Conflicto Hemisférico (Leer Inverso / Escribir Normal)", render: (dom, v) => dom.innerHTML=`<p>Este es un reto de carga cognitiva alta. Lee el texto invertido mientras escribes la versión correcta abajo:</p><div style="background:#2c3e50; color:#ecf0f1; padding:20px; margin-bottom:20px; direction:rtl; border-radius:8px; font-size:1.2em; font-family:monospace;">${renderDual(v, t=>t.split('').reverse().join(''))}</div><textarea class="zona-escritura" placeholder="Escriba aquí la versión al derecho..."></textarea>` },
+            { nombre: "40. Desintegración Atómica", render: (dom, v) => { 
+                EstadoApp.datosTemporales.nb = 0.15;
+                dom.innerHTML=`<p>Con cada pulsación, el texto perderá integridad. Memoriza rápido.</p><div id="db" style="margin:bottom:20px; padding:25px; background:#fff; border:1px solid #ccc; border-radius:8px; font-family:monospace; letter-spacing:1px; font-size:1.2em;">${renderDual(v)}</div><button id="bb" style="width:100%; margin-top:15px; background:#dc3545; padding:15px;">☢️ Inducir Desintegración (Nivel ${EstadoApp.datosTemporales.nb*100}%)</button>`; 
+                document.getElementById('bb').onclick=(e)=>{ 
+                    document.getElementById('db').innerHTML = renderDual(v, t => t.split('').map(c => c.match(/[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9]/) && Math.random() < EstadoApp.datosTemporales.nb ? '<span style="opacity:0.1">_</span>' : c).join(''));
+                    EstadoApp.datosTemporales.nb += 0.15;
+                    e.target.textContent = `☢️ Inducir Desintegración (Nivel ${Math.min(100, Math.round(EstadoApp.datosTemporales.nb*100))}%)`;
+                    if(EstadoApp.datosTemporales.nb >= 1) e.target.disabled=true;
+                }; 
+            } },
+            { nombre: "41. Certificación Libre (Prueba Final)", render: (dom, v) => { let t=`${v.cita} ${v.texto}`; dom.innerHTML=`<textarea id="tpf" class="zona-escritura" style="height:150px; font-size:1.2em; padding:15px;" placeholder="El lienzo está en blanco. Demuestre su dominio escribiendo la cita y el texto..."></textarea><button id="bpf" style="margin-top:15px; width:100%; padding:15px; font-size:1.1em; background:#000;">Ejecutar Auditoría Estricta</button><div id="rpf" class="feedback-banner" style="font-size:1.3em;"></div>`; document.getElementById('bpf').onclick=()=>{ let r=document.getElementById('rpf'); r.style.display='block'; if(Validacion.comparar(document.getElementById('tpf').value, t)){ r.innerHTML='<span class="correcto">🎖️ CERTIFICACIÓN APROBADA: MEMORIA ABSOLUTA</span>'; r.style.background='#d4edda'; r.style.border='2px solid #28a745'; }else{ r.innerHTML='<span class="incorrecto">❌ CERTIFICACIÓN DENEGADA. SINTAXIS INVÁLIDA.</span>'; r.style.background='#f8d7da'; r.style.border='2px solid #dc3545'; } }; } },
+            { nombre: "42. Cámara de Aislamiento (Repaso Ciego)", render: (dom, v) => { dom.innerHTML=`<div id="t42" style="font-size:3em; font-weight:bold; color:#0056b3; text-align:center; margin-bottom:15px;">60</div><div id="dt42" style="padding:30px; background:#fff; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,0.1);">${renderDual(v)}</div>`; let timer=60; EstadoApp.registrarIntervalo(setInterval(()=>{ timer--; document.getElementById('t42').textContent=timer; if(timer===50) { document.getElementById('dt42').innerHTML='<div style="text-align:center; color:#dc3545; padding:40px;"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle><line x1="4" y1="4" x2="20" y2="20"></line></svg><h2>Estímulo visual cortado</h2><p>El texto está ahora en su memoria a corto plazo. Sosténgalo ahí durante los próximos segundos.</p></div>'; document.getElementById('t42').style.color='#dc3545'; } if(timer<=0) { EstadoApp.limpiar(); document.getElementById('t42').textContent="Prueba Superada"; document.getElementById('t42').style.color='#28a745'; } },1000)); } },
+            { nombre: "43. Marcapasos Neuronal (Metrónomo)", render: (dom, v) => { dom.innerHTML=`<button id="br" style="width:100%; padding:15px; font-size:1.1em;">Sincronizar Ritmo de Lectura</button><div style="display:flex; justify-content:center; margin:30px 0;"><div id="dr" style="width:80px; height:80px; background:#e9ecef; border-radius:50%; transition:background 0.05s, transform 0.1s; box-shadow:inset 0 0 10px rgba(0,0,0,0.2);"></div></div><div style="background:#fff; padding:20px; border-radius:8px; border:1px solid #eee;">${renderDual(v)}</div>`; document.getElementById('br').onclick=(e)=>{ e.target.disabled=true; let on=false; EstadoApp.registrarIntervalo(setInterval(()=>{ on=!on; let dr = document.getElementById('dr'); dr.style.background=on?'#ffc107':'#e9ecef'; dr.style.transform=on?'scale(1.1)':'scale(1)'; },600)); }; } },
+            { nombre: "44. Motor SM-2 (Algoritmo de Espaciado)", render: (dom, v) => {
+                dom.innerHTML=`<div style="padding:25px; background:#fff; border-radius:8px; margin-bottom:20px; box-shadow:0 4px 6px rgba(0,0,0,0.05);" id="text-sm2">${renderDual(v)}</div><div style="background:#2c3e50; color:white; padding:20px; border-radius:8px;"><p id="p-sm2" style="font-size:1.2em; text-align:center; margin-top:0;">Autoevaluación de Carga Cognitiva:</p><div id="btn-group-sm2" style="display:flex;gap:10px;"><button onclick="document.getElementById('res-sm2').style.display='block'; document.getElementById('text-sm2').style.display='none'; document.getElementById('btn-group-sm2').style.display='none'; document.getElementById('p-sm2').style.display='none';" style="background:#e74c3c; flex:1; padding:15px; border:2px solid #c0392b;">Nulo<br><small>(Olvido total)</small></button><button onclick="document.getElementById('res-sm2').style.display='block'; document.getElementById('text-sm2').style.display='none'; document.getElementById('btn-group-sm2').style.display='none'; document.getElementById('p-sm2').style.display='none';" style="background:#f39c12; color:#fff; flex:1; padding:15px; border:2px solid #d35400;">Difícil<br><small>(Recordé con esfuerzo)</small></button><button onclick="document.getElementById('res-sm2').style.display='block'; document.getElementById('text-sm2').style.display='none'; document.getElementById('btn-group-sm2').style.display='none'; document.getElementById('p-sm2').style.display='none';" style="background:#2ecc71; flex:1; padding:15px; border:2px solid #27ae60;">Fácil<br><small>(Retención fluida)</small></button></div></div><div id="res-sm2" class="feedback-banner" style="background:#d4edda; display:none; padding:30px;"><span class="correcto" style="font-size:1.5em;">💾 Multiplicador de intervalo ajustado. Su próxima revisión ha sido programada por el algoritmo.</span></div>`;
+            } },
+            { nombre: "45. Dificultad Adaptativa Inteligente", render: (dom, v) => { 
+                let t = `${v.cita} ${v.texto}`; EstadoApp.datosTemporales.fallos = 0;
+                dom.innerHTML=`<p>Si la evaluación falla, el sistema proveerá andamiajes cognitivos (scaffolding) de forma automática.</p><textarea id="tda" class="zona-escritura" placeholder="Cita y texto..."></textarea><button id="bda" style="margin-top:15px; width:100%; padding:15px;">Validar Memoria</button><div id="rda" style="margin-top:15px; padding:20px; border-radius:6px; display:none; font-size:1.1em; line-height:1.6; border-left:5px solid #dc3545;"></div>`; 
+                document.getElementById('bda').onclick=()=>{ 
+                    let r = document.getElementById('rda'); r.style.display = 'block'; 
+                    if(!Validacion.comparar(document.getElementById('tda').value, t)) { 
+                        EstadoApp.datosTemporales.fallos++; r.style.background = '#fffafa'; r.style.borderLeftColor = '#dc3545'; let ayudaHtml = "";
+                        if(EstadoApp.datosTemporales.fallos === 1) ayudaHtml = "<strong>Asistencia Lvl 1 (Pista de Iniciales):</strong><br><br>" + renderDual(v, x=>x.split(' ').map(p=>p.charAt(0)+'_'.repeat(p.length-1)).join(' '));
+                        else if(EstadoApp.datosTemporales.fallos === 2) ayudaHtml = "<strong>Asistencia Lvl 2 (Claves Aleatorias):</strong><br><br>" + renderDual(v, x=>x.split(' ').map(p=>Math.random()>0.5?p:'_'.repeat(p.length)).join(' '));
+                        else { ayudaHtml = `<strong>Asistencia Lvl 3 (Revelación Temporal de 3s):</strong><br><br><div id="ayuda-text" style="background:#eee; padding:15px; border-radius:4px;">${renderDual(v)}</div>`; setTimeout(()=>{let x = document.getElementById('ayuda-text'); if(x) x.style.display='none';}, 3000); EstadoApp.datosTemporales.fallos = 0; }
+                        r.innerHTML=`<span style='color:#dc3545; font-weight:bold;'>Fallo detectado. Implementando andamiaje: </span><br><br>${ayudaHtml}`; 
+                    } else { r.style.background = '#d4edda'; r.style.borderLeftColor = '#28a745'; r.innerHTML="<span class='correcto'>¡Precisión Total! Andamiaje retirado.</span>"; EstadoApp.datosTemporales.fallos = 0; } 
+                }; 
+            } },
+            { nombre: "46. Presión Cronométrica Dinámica", render: (dom, v) => { 
+                let t = `${v.cita} ${v.texto}`; let pLength = t.split(' ').length;
+                let baseTime = Math.max(15, Math.floor(pLength * 2.5)); 
+                dom.innerHTML=`<div id="t46" style="font-size:4em; color:#dc3545; text-align:center; font-weight:bold; margin-bottom:0; text-shadow: 2px 2px 0px #f8d7da;">${baseTime}</div><p style="text-align:center; color:#666; margin-top:0;">segundos calculados según longitud del texto</p><textarea id="ta46" class="zona-escritura" style="border:2px solid #dc3545; background:#fffafa;" placeholder="Escribe a máxima velocidad..."></textarea>`; 
+                let timer=baseTime; EstadoApp.registrarIntervalo(setInterval(()=>{ 
+                    timer--; document.getElementById('t46').textContent=timer; 
+                    if(timer<=5) document.getElementById('t46').style.animation = 'latido 0.5s infinite';
+                    if(timer<=0){ EstadoApp.limpiar(); document.getElementById('ta46').disabled=true; document.getElementById('t46').textContent="¡Tiempo Agotado!"; document.getElementById('t46').style.animation='none'; } 
+                },1000)); 
+            } },
+            { nombre: "47. Tortura Atencional (Interferencia Max)", render: (dom, v) => {
+                document.getElementById('area-trabajo').classList.add('interferencia-bg');
+                dom.innerHTML=`<div class="ruido-visual"></div><div class="ruido-visual" style="animation-duration:1.5s; top:50%; background:rgba(255,0,0,0.3); height:20px;"></div><p style="position:relative; z-index:200; font-weight:bold; color:#d35400; text-align:center; font-size:1.2em;" class="interferencia-texto">AISLA TU MENTE DEL RUIDO EXTERNO.</p><textarea class="zona-escritura interferencia-blur" style="position:relative; z-index:200; background:rgba(255,255,255,0.4); box-shadow: 0 0 20px rgba(0,0,0,0.8); border:3px solid #333; color:#000; font-weight:bold;"></textarea>`;
+            } },
+            { nombre: "48. Muro de Cristal (Repetición Estricta)", render: (dom, v) => { 
+                let t = `${v.cita} ${v.texto}`; EstadoApp.datosTemporales.racha=0; 
+                dom.innerHTML=`<div style="background:#2c3e50; color:white; padding:20px; border-radius:8px; text-align:center; margin-bottom:15px; font-size:1.2em;">Para destruir el muro, acierta <strong style="font-size:1.8em; color:#f39c12; margin:0 10px;"><span id="r48">0</span>/3</strong> veces seguidas. Un error reinicia el contador.</div><textarea id="t48" class="zona-escritura" style="background:#ecf0f1; border-color:#bdc3c7;" placeholder="Supera la prueba..."></textarea><button id="b48" style="margin-top:15px; width:100%; padding:15px; background:#e67e22;">Atacar Muro</button>`; 
+                document.getElementById('b48').onclick=()=>{ 
+                    if(Validacion.comparar(document.getElementById('t48').value, t)){ 
+                        EstadoApp.datosTemporales.racha++; document.getElementById('r48').textContent=EstadoApp.datosTemporales.racha; document.getElementById('t48').value=''; 
+                        if(EstadoApp.datosTemporales.racha===3) { document.getElementById('b48').disabled = true; document.getElementById('b48').textContent = "¡MURO DESTRUIDO!"; document.getElementById('b48').style.background = "#27ae60"; document.getElementById('t48').style.display='none'; } 
+                    } else { EstadoApp.datosTemporales.racha=0; document.getElementById('r48').textContent="0"; document.getElementById('t48').style.background='#fadbd8'; setTimeout(()=>document.getElementById('t48').style.background='#ecf0f1', 400); } 
+                }; 
+            } },
+            { nombre: "49. Analítica de Fricción Cognitiva", render: (dom, v) => { 
+                const clickSpans = (t) => t.split(' ').map(p=>`<span class="palabra-draggable" style="transition:0.2s; background:#fff; border:1px solid #17a2b8;" onclick="this.style.background=this.style.background==='rgb(220, 53, 69)'?'#fff':'#dc3545'; this.style.color=this.style.color==='white'?'#333':'white'; this.style.borderColor=this.style.borderColor==='transparent'?'#17a2b8':'transparent';">${p}</span>`).join(' ');
+                dom.innerHTML=`<div style="background:#eef; padding:15px; border-radius:6px; margin-bottom:15px;"><p style="margin:0; font-weight:bold; color:#0056b3;">Diagnóstico Manual:</p><p style="margin:5px 0 0 0; font-size:0.9em;">Identifica y haz clic en las palabras que te generan "fricción" o bloqueo mental al intentar recordar el versículo. Esto genera consciencia metacognitiva.</p></div><div style="line-height:2.5; padding:20px; background:#f8f9fa; border-radius:8px; box-shadow:inset 0 0 10px rgba(0,0,0,0.05);" id="caja-debil">${renderDual(v, clickSpans)}</div><button style="margin-top:15px; width:100%; padding:15px;" onclick="this.textContent='✓ Puntos ciegos mapeados'; this.style.background='#28a745'; this.disabled=true;">Compilar Reporte</button>` 
+            } },
+            { nombre: "50. Consolidación Fonética (Grabación)", render: (dom, v) => dom.innerHTML=`<div style="background:#fff; padding:30px; border-radius:12px; text-align:center; border-top: 5px solid #0056b3; box-shadow:0 10px 30px rgba(0,0,0,0.1);"><div style="font-size:4em; margin-bottom:10px;">🎙️</div><h2 style="margin-top:0;">El Cierre Fonético</h2><p style="font-size:1.1em; color:#555;">La retención se sella cuando escuchas tu propia voz recitando la verdad sin dudar.</p><div style="text-align:left; background:#f8f9fa; padding:20px; border-radius:8px; margin:20px 0;">${renderDual(v)}</div><ul style="text-align:left; color:#666;"><li>Abre la app de Notas de Voz en tu móvil.</li><li>Dale a grabar y cierra los ojos.</li><li>Recita el versículo completo.</li><li>Reproduce el audio para evaluar tu fluidez.</li></ul></div>` },
+            
+            { nombre: "51. Gravedad Letal (Múltiple y Rápida)", render: (dom, v) => {
+                let p = Validacion.extraerPalabras(`${v.cita} ${v.texto}`);
+                dom.innerHTML= crearHUD(3) + `<div id="cielo-gravedad"></div><input type="text" id="input-grav" style="width:100%; box-sizing:border-box; border:3px solid #0056b3; font-size:1.5em; padding:15px; text-align:center; margin-top:10px;" placeholder="Destruye las palabras antes de que toquen el suelo...">`;
+                
+                let cielo = document.getElementById('cielo-gravedad');
+                let input = document.getElementById('input-grav');
+                
+                let idxP = 0; 
+                let palabrasActivas = []; 
+                let juegoActivo = true;
+                let gameLoopId = null;
+                let spawnId = null;
+                
+                setTimeout(() => input.focus(), 100);
+                
+                gameLoopId = EstadoApp.registrarIntervalo(setInterval(() => {
+                    if (!juegoActivo) return;
+                    
+                    for (let i = palabrasActivas.length - 1; i >= 0; i--) {
+                        let obj = palabrasActivas[i];
+                        obj.pos += obj.vel;
+                        obj.el.style.top = `${obj.pos}px`;
+                        
+                        if (obj.pos > cielo.offsetHeight - 40) {
+                            obj.el.style.background = '#dc3545';
+                            obj.el.style.color = 'white';
+                            let ref = obj.el;
+                            setTimeout(() => { if (ref && ref.parentNode) ref.remove(); }, 300);
+                            
+                            palabrasActivas.splice(i, 1);
+                            input.value = "";
+                            
+                            if (!actualizarHUD(false, "¡Impacto!")) {
+                                juegoActivo = false;
+                                clearInterval(gameLoopId);
+                                clearTimeout(spawnId);
+                                input.disabled = true;
+                                cielo.innerHTML = '<div style="text-align:center; margin-top:100px; font-size:2.5em; color:#dc3545; font-weight:bold;">GAME OVER<br><span style="font-size:0.5em; color:#666;">El texto te aplastó.</span></div>';
+                            }
+                        }
+                    }
+                    
+                    if (idxP >= p.length && palabrasActivas.length === 0 && juegoActivo) {
+                        juegoActivo = false;
+                        clearInterval(gameLoopId);
+                        clearTimeout(spawnId);
+                        input.disabled = true;
+                        EstadoApp.limpiar(); 
+                        document.getElementById('area-trabajo').innerHTML = '<div style="text-align:center; margin-top:100px; font-size:2.5em; color:#28a745; font-weight:bold;">¡Victoria!<br><span style="font-size:0.5em; color:#666;">Dominaste la avalancha léxica.</span></div>';
+                    }
+                }, 30));
+
+                let spawnWord = () => {
+                    if (!juegoActivo || idxP >= p.length) return;
+                    
+                    let w = p[idxP];
+                    let el = document.createElement('div'); 
+                    el.className = 'palabra-cayendo'; 
+                    el.textContent = w;
+                    el.style.left = `${Math.random() * 70 + 10}%`; 
+                    el.style.top = `-40px`;
+                    el.style.transition = 'transform 0.1s, opacity 0.2s'; 
+                    cielo.appendChild(el);
+                    
+                    let multiplicadorProgreso = idxP / p.length;
+                    let velocidadCaida = 1.2 + (multiplicadorProgreso * 2.5) + Math.random(); 
+                    
+                    palabrasActivas.push({ el: el, txt: Validacion.normalizar(w), pos: -40, vel: velocidadCaida });
+                    idxP++;
+                    
+                    let tiempoEntrePalabras = 1800 - (multiplicadorProgreso * 1300); 
+                    spawnId = EstadoApp.registrarIntervalo(setTimeout(spawnWord, Math.max(500, tiempoEntrePalabras)));
+                };
+                
+                spawnId = EstadoApp.registrarIntervalo(setTimeout(spawnWord, 500));
+                
+                input.addEventListener('input', (e) => {
+                    if (!juegoActivo) return;
+                    let val = Validacion.normalizar(e.target.value);
+                    
+                    let matchIdx = -1;
+                    let maxPos = -999;
+                    
+                    for (let i = 0; i < palabrasActivas.length; i++) {
+                        if (palabrasActivas[i].txt === val) {
+                            if (palabrasActivas[i].pos > maxPos) {
+                                maxPos = palabrasActivas[i].pos;
+                                matchIdx = i;
+                            }
+                        }
+                    }
+                    
+                    if (matchIdx !== -1) {
+                        let obj = palabrasActivas[matchIdx];
+                        palabrasActivas.splice(matchIdx, 1); 
+                        
+                        obj.el.style.background = '#28a745'; 
+                        obj.el.style.color = 'white'; 
+                        obj.el.style.transform = 'scale(1.5)'; 
+                        obj.el.style.opacity = '0';
+                        
+                        let ref = obj.el;
+                        setTimeout(()=> { if (ref && ref.parentNode) ref.remove(); }, 200);
+                        
+                        e.target.value = ""; 
+                        actualizarHUD(true, "¡Destruida!"); 
+                    }
+                });
+            } },
+            { nombre: "52. Visión Periférica Extrema", render: (dom, v) => {
+                let p = Validacion.extraerPalabras(`${v.cita} ${v.texto}`);
+                dom.innerHTML = `<p style="text-align:center;">Fije sus ojos <strong>estrictamente en el punto rojo</strong>. Lea las palabras usando solo su visión periférica lateral.</p>
+                                 <div class="grid-periferico" style="background:#111; padding:30px; border-radius:8px; margin-bottom:15px;">
+                                    <div id="peri-izq" style="color:white; font-size:2em; text-align:right; padding-right:20px;"></div>
+                                    <div class="punto-fijacion"></div>
+                                    <div id="peri-der" style="color:white; font-size:2em; text-align:left; padding-left:20px;"></div>
+                                 </div>
+                                 <button id="btn-peri" style="width:100%; padding:15px; background:#e67e22;">Comenzar Destellos</button>`;
+                document.getElementById('btn-peri').onclick = (e) => {
+                    e.target.disabled = true; let i = 0; let izq = document.getElementById('peri-izq'); let der = document.getElementById('peri-der');
+                    EstadoApp.registrarIntervalo(setInterval(()=>{
+                        izq.textContent = ""; der.textContent = "";
+                        if(i >= p.length) { EstadoApp.limpiar(); e.target.disabled=false; e.target.textContent="Prueba Finalizada"; return; }
+                        setTimeout(()=>{
+                            izq.textContent = p[i] || ""; der.textContent = p[i+1] || ""; i+=2;
+                        }, 200); 
+                    }, 1200));
+                };
+            } },
+            { nombre: "53. Ruleta Ortográfica (Precisión)", render: (dom, v) => {
+                let p = Validacion.extraerPalabras(v.texto).filter(w => Validacion.normalizar(w).length > 5);
+                let oculta = p[Math.floor(Math.random()*p.length)];
+                if(!oculta) { dom.innerHTML="Versículo sin palabras largas."; return; }
+                let normalizada = Validacion.normalizar(oculta);
+                
+                dom.innerHTML = crearHUD(3) + `<div style="padding:20px; background:#f8f9fa; border-radius:8px; font-size:1.2em; line-height:1.6; margin-bottom:20px;">${v.texto.replace(oculta, `<span style="background:#ffc107; padding:2px 10px; border-radius:4px; font-weight:bold; letter-spacing:5px;" id="hueco-ruleta">${'_'.repeat(normalizada.length)}</span>`)}</div>
+                                 <div style="text-align:center; font-size:4em; font-family:monospace; font-weight:bold; height:80px; color:#0056b3;" id="ruleta-visor">A</div>
+                                 <button id="btn-ruleta" style="width:100%; padding:20px; font-size:1.5em; border-radius:50px;">¡Detener Ruleta!</button>`;
+                
+                let visor = document.getElementById('ruleta-visor'); let hueco = document.getElementById('hueco-ruleta');
+                let charIdx = 0; let ruletaId = null; let abcd = "abcdefghijklmnopqrstuvwxyzáéíóúñ";
+                
+                let girar = () => {
+                    ruletaId = EstadoApp.registrarIntervalo(setInterval(()=>{
+                        visor.textContent = abcd[Math.floor(Math.random()*abcd.length)].toUpperCase();
+                    }, 50));
+                };
+                
+                document.getElementById('btn-ruleta').onclick = () => {
+                    clearInterval(ruletaId); let letraAtrapada = visor.textContent.toLowerCase();
+                    if(letraAtrapada === normalizada[charIdx]) {
+                        let actual = hueco.textContent.split(''); actual[charIdx] = letraAtrapada.toUpperCase(); hueco.textContent = actual.join('');
+                        charIdx++; actualizarHUD(true, "¡Letra correcta!");
+                        if(charIdx === normalizada.length) { actualizarHUD(true, "¡Palabra Completada!"); document.getElementById('btn-ruleta').disabled = true; visor.textContent="✅"; }
+                        else girar();
+                    } else {
+                        if(actualizarHUD(false, "Letra equivocada")) girar();
+                        else { document.getElementById('btn-ruleta').disabled = true; visor.textContent="❌"; }
+                    }
+                };
+                girar();
+            } },
+            { nombre: "54. Matriz de Fijación (Patrón Z)", render: (dom, v) => {
+                let p = Validacion.extraerPalabras(`${v.cita} ${v.texto}`);
+                let rejilla = "";
+                for(let i=0; i<p.length; i+=4) {
+                    let fila = p.slice(i, i+4);
+                    while(fila.length < 4) fila.push(""); 
+                    rejilla += `<div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; text-align:center; padding:15px 0; border-bottom:1px solid #eee;">
+                        <span class="z-item" style="color:transparent; transition:color 0.2s;">${fila[0]}</span>
+                        <span class="z-item" style="color:transparent; transition:color 0.2s;">${fila[1]}</span>
+                        <span class="z-item" style="color:transparent; transition:color 0.2s;">${fila[2]}</span>
+                        <span class="z-item" style="color:transparent; transition:color 0.2s;">${fila[3]}</span>
+                    </div>`;
+                }
+                dom.innerHTML = `<p>Siga el rastro iluminado leyendo en Z sin mover la cabeza.</p><div style="background:#fff; border:1px solid #ccc; border-radius:8px; padding:10px;">${rejilla}</div><button id="btn-z" style="width:100%; margin-top:15px; padding:15px;">Activar Escáner Z</button>`;
+                
+                document.getElementById('btn-z').onclick = (e) => {
+                    e.target.disabled = true; let items = document.querySelectorAll('.z-item'); let i = 0;
+                    EstadoApp.registrarIntervalo(setInterval(()=>{
+                        items.forEach(it=>it.style.color = 'transparent');
+                        if(i < items.length) { items[i].style.color = '#0056b3'; items[i].style.fontWeight = 'bold'; i++; }
+                        else { EstadoApp.limpiar(); e.target.textContent="Escaneo Terminado"; }
+                    }, 300));
+                };
+            } },
+           { nombre: "55. Desactivación de Bomba (Código Secreto)", render: (dom, v) => {
+                let t = `${v.cita} ${v.texto}`;
+                let normalizado = Validacion.normalizar(t);
+                let displayHTML = "";
+                let charIdx = 0;
+                
+                // Construir el display inicial (solo muestra algunas letras de pista, el resto guiones)
+                for(let i=0; i<t.length; i++) {
+                    let char = t[i];
+                    if (/[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9]/.test(char)) {
+                        let isPista = Math.random() > 0.85; // 15% de probabilidad de revelar la letra
+                        displayHTML += `<span id="bomb-char-${i}" style="border-bottom:2px solid #555; margin:0 2px; width:15px; display:inline-block; text-align:center; color:${isPista ? '#ffc107' : 'transparent'}; font-family:monospace; font-weight:bold; transition:all 0.1s;">${isPista ? char.toUpperCase() : char.toUpperCase()}</span>`;
+                    } else {
+                        displayHTML += `<span style="margin:0 2px; color:#888;">${char}</span>`;
+                    }
+                }
+
+                let baseTime = Math.max(20, Math.floor(normalizado.length * 0.4)); // Tiempo base basado en longitud
+                
+                dom.innerHTML = `
+                    <div style="background:#111; padding:30px; border-radius:12px; border:4px solid #333; box-shadow:inset 0 0 50px rgba(0,0,0,0.8), 0 10px 20px rgba(0,0,0,0.3); text-align:center; position:relative; overflow:hidden;">
+                        <div class="ruido-visual" style="opacity:0.3;"></div>
+                        <div style="color:#dc3545; font-family:monospace; font-size:1.2em; font-weight:bold; letter-spacing:3px; margin-bottom:15px;">>>> ALERTA DE SISTEMA <<<</div>
+                        <div id="bomb-timer" style="font-family:monospace; font-size:5em; font-weight:bold; color:#dc3545; text-shadow:0 0 15px #dc3545, 0 0 5px #dc3545; margin-bottom:20px; line-height:1;">00:${baseTime.toString().padStart(2, '0')}</div>
+                        
+                        <div style="background:#222; padding:20px; border-radius:6px; border:1px solid #444; margin-bottom:20px; line-height:2.5; font-size:1.3em;">
+                            ${displayHTML}
+                        </div>
+                        
+                        <p style="color:#aaa; font-size:0.9em; margin-bottom:10px;">Introduce el código de desactivación exacto. Los errores restarán tiempo vital.</p>
+                        <input type="text" id="bomb-input" autocomplete="off" style="width:100%; background:#000; color:#0f0; font-family:monospace; font-size:1.5em; padding:15px; border:2px solid #0f0; outline:none; text-align:center; text-transform:uppercase; box-shadow:0 0 10px rgba(0,255,0,0.2);" placeholder="_">
+                        <div id="res-bomba" style="margin-top:15px; font-weight:bold; font-size:1.2em; display:none;"></div>
+                    </div>
+                `;
+
+                let timerDOM = document.getElementById('bomb-timer');
+                let inputDOM = document.getElementById('bomb-input');
+                let resDOM = document.getElementById('res-bomba');
+                let tiempoRestante = baseTime;
+                let juegoActivo = true;
+                
+                setTimeout(() => inputDOM.focus(), 100);
+
+                let actualizaTimer = () => {
+                    let min = Math.floor(tiempoRestante / 60);
+                    let sec = tiempoRestante % 60;
+                    timerDOM.textContent = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+                    if (tiempoRestante <= 10) timerDOM.style.animation = 'latido 0.5s infinite';
+                };
+
+                let timerId = EstadoApp.registrarIntervalo(setInterval(() => {
+                    if(!juegoActivo) return;
+                    tiempoRestante--;
+                    actualizaTimer();
+                    
+                    if(tiempoRestante <= 0) {
+                        juegoActivo = false;
+                        clearInterval(timerId);
+                        inputDOM.disabled = true;
+                        timerDOM.textContent = "00:00";
+                        timerDOM.style.animation = 'none';
+                        document.querySelector('div[style*="background:#111"]').style.background = '#300000';
+                        resDOM.innerHTML = '<span class="incorrecto">💥 DETONACIÓN. Código no introducido a tiempo.</span>';
+                        resDOM.style.display = 'block';
+                    }
+                }, 1000));
+
+                let normalizadoIdx = 0; // Índice de la letra pura (sin puntuación) que el usuario debe teclear
+                
+                inputDOM.addEventListener('input', (e) => {
+                    if(!juegoActivo) return;
+                    
+                    let val = e.target.value;
+                    if(val.length === 0) return;
+                    
+                    let ultimaLetraIn = val.slice(-1).toLowerCase().replace(/[^a-z0-9ñáéíóú]/g, '');
+                    
+                    if(ultimaLetraIn === "") {
+                        e.target.value = ""; return; // Ignorar si presiona espacios o simbolos en el input
+                    }
+
+                    if(ultimaLetraIn === normalizado[normalizadoIdx]) {
+                        // ACIERTO
+                        
+                        // Buscar el span correcto en el HTML (saltando espacios y comas en el texto original)
+                        let rawIdx = 0;
+                        let normCounter = 0;
+                        while(rawIdx < t.length) {
+                            if(/[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9]/.test(t[rawIdx])) {
+                                if(normCounter === normalizadoIdx) break;
+                                normCounter++;
+                            }
+                            rawIdx++;
+                        }
+                        
+                        let spanTarget = document.getElementById(`bomb-char-${rawIdx}`);
+                        if(spanTarget) {
+                            spanTarget.style.color = '#0f0';
+                            spanTarget.style.textShadow = '0 0 8px #0f0';
+                            spanTarget.style.borderColor = '#0f0';
+                        }
+                        
+                        normalizadoIdx++;
+                        e.target.value = ""; // Limpiar input para la siguiente letra
+                        
+                        // CONDICIÓN DE VICTORIA
+                        if(normalizadoIdx === normalizado.length) {
+                            juegoActivo = false;
+                            clearInterval(timerId);
+                            inputDOM.disabled = true;
+                            timerDOM.style.color = '#28a745';
+                            timerDOM.style.textShadow = '0 0 15px #28a745';
+                            timerDOM.style.animation = 'none';
+                            resDOM.innerHTML = '<span class="correcto">✅ CÓDIGO ACEPTADO. Sistema estabilizado.</span>';
+                            resDOM.style.display = 'block';
+                        }
+                    } else {
+                        // FALLO: Penalización de tiempo y efecto visual
+                        tiempoRestante = Math.max(0, tiempoRestante - 2);
+                        actualizaTimer();
+                        
+                        inputDOM.style.background = '#500';
+                        setTimeout(() => { if(juegoActivo) inputDOM.style.background = '#000'; }, 150);
+                        e.target.value = ""; // Borrar letra equivocada
+                    }
+                });
+            } }
+        ]
+    };
+
+    function inicializar() {
+        const selector = document.getElementById('selector-versiculo');
+        const citaDOM = document.getElementById('cita-actual');
+        const btnReintentar = document.getElementById('btn-reintentar');
+
+        if(typeof versiculos !== 'undefined' && versiculos.length > 0) {
+            versiculos.forEach((v, index) => {
+                let option = document.createElement('option');
+                option.value = index; option.textContent = `${v.semana} - ${v.cita}`;
+                selector.appendChild(option);
+            });
+            EstadoApp.versiculo = versiculos[0];
+            citaDOM.textContent = EstadoApp.versiculo.cita;
+        } else {
+            citaDOM.textContent = "Error: versomemo.js no encontrado o base de datos vacía.";
+        }
+
+        selector.addEventListener('change', (e) => {
+            EstadoApp.versiculo = versiculos[e.target.value];
+            citaDOM.textContent = EstadoApp.versiculo.cita;
+            EstadoApp.persistencia = {};
+            EstadoApp.limpiar();
+            EstadoApp.estrategiaActiva = null;
+            btnReintentar.disabled = true;
+            document.getElementById('area-trabajo').innerHTML = '<div style="text-align:center; color:#666; margin-top:50px;"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg><h2>Nuevo Versículo Cargado</h2><p>Seleccione una técnica para iniciar el entrenamiento.</p></div>';
+            document.querySelectorAll('.btn-tecnica').forEach(b => b.classList.remove('activo'));
+        });
+        
+        btnReintentar.onclick = () => {
+            if(EstadoApp.estrategiaActiva) {
+                EstadoApp.limpiar();
+                EstadoApp.estrategiaActiva.render(document.getElementById('area-trabajo'), EstadoApp.versiculo);
+            }
+        };
+
+        const mapDom = { fase1_Reconocimiento: document.getElementById('menu-fase-1'), fase2_Produccion: document.getElementById('menu-fase-2'), fase3_Dominio: document.getElementById('menu-fase-3') };
+
+        for (const [fase, estrategias] of Object.entries(DiccionarioEstrategias)) {
+            estrategias.forEach((est) => {
+                let btn = document.createElement('button');
+                btn.className = 'btn-tecnica'; btn.textContent = est.nombre;
+                btn.onclick = (e) => {
+                    document.querySelectorAll('.btn-tecnica').forEach(b => b.classList.remove('activo')); e.target.classList.add('activo');
+                    if(EstadoApp.estrategiaActiva !== est) { EstadoApp.persistencia = {}; }
+                    EstadoApp.limpiar(); EstadoApp.estrategiaActiva = est; btnReintentar.disabled = false;
+                    est.render(document.getElementById('area-trabajo'), EstadoApp.versiculo);
+                };
+                mapDom[fase].appendChild(btn);
+            });
+        }
+    }
+
+    window.onload = inicializar;
+</script>
+</body>
+</html>
